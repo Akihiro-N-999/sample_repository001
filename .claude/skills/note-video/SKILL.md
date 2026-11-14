@@ -25,6 +25,8 @@ description: note記事のURLから、役割分担したサブエージェント
 | ユーザーにファイルを渡すとき | `video-handoff` | 番号付きの写し（`video/lib/handoff.py`）、コミットしてから送る |
 | ユーザーが画像をアップロードしたとき | `video-intake` | 受け取り（`video/lib/intake.py`）、確認、校閲へ |
 
+**フックで強制していること**：`video/` の中のファイルを SendUserFile で送るとき、名前が `名前_v番号` でなければ止まる（`.claude/settings.json`、`video/lib/hooks/check_sendfile.py`）。止まったら `video-handoff` で写しを作ってから送る。
+
 
 ## チームとモデル
 
