@@ -137,7 +137,7 @@ def main():
         render(fn, total, None, os.path.join(OUT, "shovel_b_still"), frames=ts)
         return
     out = os.path.join(OUT, "shovel_b.mp4")
-    render(fn, total, tl.audio(total), out)
+    out = render(fn, total, tl.audio(total), out)
     print(f"wrote {out} ({total:.1f}s)")
 
 

@@ -1,9 +1,9 @@
 # 画像生成指示書：見本A（漫画動画の方式）「辞令」の場面
 
 試作エピソード「スコップを渡された人たち」(slug: shovel) の「辞令」の場面だけを使う、絵柄比較用の見本。
-画風は、採用済みのアキヒロの基準画像（`video/characters/akihiro/images/akihiro_base_sample.jpg`）に合わせる。
+画風は、採用済みのアキヒロの基準画像（`video/characters/akihiro/images/akihiro_base_v1.jpg`）に合わせる。
 
-**あなた（人）にお願いする作業は「生成して、指定のファイル名で保存し、アップロードする」だけです。** 緑の背景を抜く、サイズや位置の補正、差分の重ね合わせ確認は制作側で行います。
+**あなた（人）にお願いする作業は「生成して、ダウンロードしたまま（名前は変えずに）1つのフォルダに入れて ZIP にし、アップロードする」だけです。ファイル名は制作側で付けます（下の表の名前、`_v1` から始めて作り直すたびに番号を上げる）。** 緑の背景を抜く、サイズや位置の補正、差分の重ね合わせ確認は制作側で行います。
 
 保存先: `video/assets/images/shovel/`（リポジトリには入れない）
 
@@ -22,7 +22,7 @@
 - **前提：アキヒロの基準画像を作ったときの Gemini の会話の続きで頼む。** 画風の記憶が残っているので、新しい会話にしない。
 - モデル：基準画像を作ったときと同じ「日々の暮らしをサポート（4 Hydrogen）」、思考レベル「標準」。
 - **立ち絵の基準画像（1-1〜1-4）は、各2〜3案作って1枚選ぶ。** 差分と場面イラストは1案で始め、気に入らなければその1枚だけ作り直す。
-- 毎回、`akihiro_base_sample.jpg` を「画風の参考」として添付する（会話内で見えていても添付し直す。画風が薄まるのを防ぐため）。
+- 毎回、`akihiro_base_v1.jpg` を「画風の参考」として添付する（会話内で見えていても添付し直す。画風が薄まるのを防ぐため）。
 
 ## 共通スタイル指定（すべての指示文の先頭にそのまま入れる。指示文の中に記載済み）
 ```
@@ -49,15 +49,15 @@
 1. 1-1 偉い人 → 1-2 行員A → 1-3 行員B → 1-4 行員C の順に、立ち絵の基準画像を作る（各2〜3案から1枚選ぶ）。
 2. 選んだ偉い人と行員Aの立ち絵を使って、2-1、2-2 の口開き差分を作る（基準画像を添付して口だけ変える）。
 3. 選んだ立ち絵4枚を全部添付して、3 の場面イラストを作る。
-4. 各画像を指定のファイル名で保存し、アップロードする。
+4. ダウンロードした画像を名前は変えずに1つのフォルダに入れ、ZIP にしてアップロードする（どの指示書の画像かだけ添える）。
 
 ---
 
 ## 指示文（1枚ずつ）
 
 ### 1-1. 偉い人：立ち絵（基準画像）
-- ファイル名: `shovel_boss_base.png`
-- 添付: `akihiro_base_sample.jpg`（画風と構図の参考。顔や服は真似しない）
+- ファイル名: `shovel_boss_base_v1.png`
+- 添付: `akihiro_base_v1.jpg`（画風と構図の参考。顔や服は真似しない）
 - 縦横比: 3:4
 
 ```
@@ -81,8 +81,8 @@
 ```
 
 ### 1-2. 行員A：立ち絵（基準画像）
-- ファイル名: `shovel_a_base.png`
-- 添付: `akihiro_base_sample.jpg`
+- ファイル名: `shovel_a_base_v1.png`
+- 添付: `akihiro_base_v1.jpg`
 - 縦横比: 3:4
 
 ```
@@ -106,8 +106,8 @@
 ```
 
 ### 1-3. 行員B：立ち絵（基準画像）
-- ファイル名: `shovel_b_base.png`
-- 添付: `akihiro_base_sample.jpg`
+- ファイル名: `shovel_b_base_v1.png`
+- 添付: `akihiro_base_v1.jpg`
 - 縦横比: 3:4
 
 ```
@@ -131,8 +131,8 @@
 ```
 
 ### 1-4. 行員C：立ち絵（基準画像）
-- ファイル名: `shovel_c_base.png`
-- 添付: `akihiro_base_sample.jpg`
+- ファイル名: `shovel_c_base_v1.png`
+- 添付: `akihiro_base_v1.jpg`
 - 縦横比: 3:4
 
 ```
@@ -156,8 +156,8 @@
 ```
 
 ### 2-1. 偉い人：口開き
-- ファイル名: `shovel_boss_mouth_open.png`
-- 添付: 選んだ `shovel_boss_base.png`
+- ファイル名: `shovel_boss_mouth_open_v1.png`
+- 添付: 選んだ `shovel_boss_base_v1.png`
 
 ```
 添付した画像（偉い人の基準画像）とまったく同じ画像で、口だけを変えてください。
@@ -167,8 +167,8 @@
 ```
 
 ### 2-2. 行員A：口開き
-- ファイル名: `shovel_a_mouth_open.png`
-- 添付: 選んだ `shovel_a_base.png`
+- ファイル名: `shovel_a_mouth_open_v1.png`
+- 添付: 選んだ `shovel_a_base_v1.png`
 
 ```
 添付した画像（行員Aの基準画像）とまったく同じ画像で、口だけを変えてください。
@@ -178,8 +178,8 @@
 ```
 
 ### 3. 場面イラスト：スコップを差し出す
-- ファイル名: `shovel_scene_assign.png`
-- 添付: `akihiro_base_sample.jpg`（画風の参考）、選んだ `shovel_boss_base.png`、`shovel_a_base.png`、`shovel_b_base.png`、`shovel_c_base.png`（人物の見た目の基準）
+- ファイル名: `shovel_scene_assign_v1.png`
+- 添付: `akihiro_base_v1.jpg`（画風の参考）、選んだ `shovel_boss_base_v1.png`、`shovel_a_base_v1.png`、`shovel_b_base_v1.png`、`shovel_c_base_v1.png`（人物の見た目の基準）
 - 縦横比: 16:9
 
 ```
@@ -208,18 +208,18 @@
 
 ---
 
-## 保存するファイルの一覧（`video/assets/images/shovel/`）
+## 制作側が付ける保存名の一覧（`video/assets/images/shovel/`）
 | ファイル名 | 内容 | 優先 |
 |---|---|---|
-| `shovel_boss_base.png` | 偉い人・立ち絵 | 必須 |
-| `shovel_a_base.png` | 行員A・立ち絵 | 必須 |
-| `shovel_b_base.png` | 行員B・立ち絵 | 必須 |
-| `shovel_c_base.png` | 行員C・立ち絵 | 必須 |
-| `shovel_boss_mouth_open.png` | 偉い人・口開き | 必須 |
-| `shovel_a_mouth_open.png` | 行員A・口開き | 必須 |
-| `shovel_scene_assign.png` | 場面イラスト（16:9、文字なし） | 必須 |
+| `shovel_boss_base_v1.png` | 偉い人・立ち絵 | 必須 |
+| `shovel_a_base_v1.png` | 行員A・立ち絵 | 必須 |
+| `shovel_b_base_v1.png` | 行員B・立ち絵 | 必須 |
+| `shovel_c_base_v1.png` | 行員C・立ち絵 | 必須 |
+| `shovel_boss_mouth_open_v1.png` | 偉い人・口開き | 必須 |
+| `shovel_a_mouth_open_v1.png` | 行員A・口開き | 必須 |
+| `shovel_scene_assign_v1.png` | 場面イラスト（16:9、文字なし） | 必須 |
 
-ファイル名を付け直すのが手間なら、生成した順にそのままアップロードし、「1枚目が偉い人、2枚目が行員A…」と添えてもらえれば制作側で名前を付ける。
+ダウンロードしたファイルの名前は変えなくてよい。ZIP の中身は制作側が絵を見てどの画像か判断し、表の名前で保存する。
 
 ## 受け取り後の確認項目（人が見て、作り直すか決める）
 - 文字・数字・ロゴ・名札・看板が入っている（スコップ、背景、服を含む）

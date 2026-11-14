@@ -709,11 +709,57 @@ def portrait_narrator(ctx, x, y, r, mouth):
     ctx.restore()
 
 
+# ---------------------------------------------------------------- ファイル名のバージョン
+# 統一ルール：生成するファイル（画像の素材、動画・音声などの成果物）は「名前_v番号.拡張子」にする。
+# 作り直すたびに番号を上げ、同じ名前で上書きしない。読み込みは、指定がなければ最新の番号を使う。
+_VER_RE = r"_v(\d+)$"
+
+
+def _versions(path):
+    """path（番号なしの名前）に対応する既存の版を [(番号, パス), ...] で返す。"""
+    import glob
+    import re
+    base, ext = os.path.splitext(path)
+    out = []
+    for p in glob.glob(glob.escape(base) + "_v*" + ext):
+        m = re.search(_VER_RE, os.path.splitext(p)[0])
+        if m and os.path.splitext(p)[0][:m.start()] == base:
+            out.append((int(m.group(1)), p))
+    return sorted(out)
+
+
+def latest(path, version=None):
+    """番号なしの名前から、最新の版（version を指定すればその版）のパスを返す。
+    すでに番号付きの名前ならそのまま返す。どの版もなければ番号なしの名前を返す。"""
+    import re
+    if re.search(_VER_RE, os.path.splitext(path)[0]):
+        return path
+    vs = _versions(path)
+    if version is not None:
+        for n, p in vs:
+            if n == version:
+                return p
+        raise FileNotFoundError(f"{path} の v{version} がない")
+    return vs[-1][1] if vs else path
+
+
+def next_version(path):
+    """番号なしの名前から、まだ使われていない次の版のパスを返す（書き出し用）。"""
+    import re
+    if re.search(_VER_RE, os.path.splitext(path)[0]):
+        return path
+    vs = _versions(path)
+    n = vs[-1][0] + 1 if vs else 1
+    base, ext = os.path.splitext(path)
+    return f"{base}_v{n}{ext}"
+
+
 NARRATOR_IMAGE = None  # 語り手アイコンに使う画像（PNG）。None ならコードで描いた顔を使う
 _img_cache = {}
 
 
 def load_image(path):
+    path = latest(path)
     if path not in _img_cache:
         _img_cache[path] = cairo.ImageSurface.create_from_png(path)
     return _img_cache[path]
@@ -774,8 +820,8 @@ def caption(ctx, tl, t, names, colors):
         text(ctx, s, bx + 60, y0 + i * 66, 52, INK[:3] + (k,), align="left")
     ctx.restore()
     if "narr" in ln.who:
-        if NARRATOR_IMAGE and os.path.exists(NARRATOR_IMAGE):
-            portrait_image(ctx, 190, 950, 95, NARRATOR_IMAGE,
+        if NARRATOR_IMAGE and os.path.exists(latest(NARRATOR_IMAGE)):
+            portrait_image(ctx, 190, 950, 95, latest(NARRATOR_IMAGE),
                            speaking=1.0 if tl.speaking("narr", t) else 0.0)
         else:
             portrait_narrator(ctx, 190, 950, 95, tl.mouth("narr", t))
@@ -807,6 +853,7 @@ def render(draw, total, audio, out_path, frames=None):
             draw(ctx, t)
             surf.write_to_png(f"{out_path}_{i:02d}_{t:05.1f}s.png")
         return
+    out_path = next_version(out_path)
     wav_path = out_path + ".wav"
     with wave.open(wav_path, "wb") as w:
         w.setnchannels(1)
@@ -833,6 +880,7 @@ def render(draw, total, audio, out_path, frames=None):
     os.remove(wav_path)
     if p.returncode:
         raise RuntimeError("ffmpeg failed")
+    return out_path
 
 
 # ---------------------------------------------------------------- 画像の立ち絵（画像生成AIで作った素材）
@@ -851,6 +899,7 @@ def _pil_to_surface(im, key):
 def key_green(path):
     """緑一色の背景（#00FF00 付近）を透明にした PIL 画像を返す。縁の緑かぶりも抑える。"""
     from PIL import Image
+    path = latest(path)
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     greenness = g - np.maximum(r, b)          # 大きいほど背景
@@ -905,6 +954,8 @@ class Tachie:
     """緑背景の立ち絵（基準画像＋口開き差分）。口開き差分がない人物は口が動かない。"""
 
     def __init__(self, base_path, open_path=None):
+        base_path = latest(base_path)
+        open_path = latest(open_path) if open_path else None
         name = os.path.splitext(os.path.basename(base_path))[0]
         stamp = str(int(os.path.getmtime(base_path)))
         self.base = _pil_to_surface(key_green(base_path), f"{name}_{stamp}_key")

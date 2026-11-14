@@ -71,3 +71,13 @@ python3 video/lib/audio_check.py mix video/episodes/<slug> --mp4 video/out/<slug
 ```
 
 文の途中での行の分け方、数字・英字の読み、台詞の長さと速さ、台詞中の無音、音割れ、台本と実装の一致、台詞の重なり、声とBGM・効果音の音量差、字幕のページ送り、MP4の音量を測り、`video/out/<slug>_check_*.md` に書き出します。
+
+## ファイル名と画像の受け取り
+
+- 生成する画像・動画・音声は `名前_v番号` で保存し、上書きしません。プログラムは最新の版を使います（詳しくは `video/STYLE.md`）。
+- Gemini の画像は、名前を変えずに ZIP でアップロードしてもらい、受け取る側で名前を付けます。
+
+```bash
+python3 video/lib/intake.py list <ZIP>                                   # 番号付きの一覧画像と対応表のひな形
+python3 video/lib/intake.py apply video/out/intake/<日時>/mapping.json   # 対応表どおり 名前_v番号 で保存
+```

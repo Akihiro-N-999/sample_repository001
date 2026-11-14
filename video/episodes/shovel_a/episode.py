@@ -71,6 +71,8 @@ class Assets:
     @staticmethod
     def _png(path, key, blur=False):
         from PIL import Image, ImageEnhance, ImageFilter
+        path = core.latest(path)
+        key = f"{key}_{os.path.splitext(os.path.basename(path))[0]}"  # 版が変わったら作り直す
         im = Image.open(path).convert("RGBA")
         if blur:
             im = im.filter(ImageFilter.GaussianBlur(40))
@@ -185,7 +187,7 @@ def main():
         render(fn, total, None, os.path.join(OUT, "shovel_a_still"), frames=ts)
         return
     out = os.path.join(OUT, "shovel_a.mp4")
-    render(fn, total, tl.audio(total), out)
+    out = render(fn, total, tl.audio(total), out)
     print(f"wrote {out} ({total:.1f}s)")
 
 

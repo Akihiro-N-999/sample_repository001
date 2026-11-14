@@ -439,8 +439,8 @@ def narrator_badge(ctx, x, y, k):
         return
     from core import portrait_narrator, portrait_image
     ctx.push_group()
-    if os.path.exists(FACE):
-        portrait_image(ctx, x - 80, y, 70, FACE)
+    if os.path.exists(core.latest(FACE)):
+        portrait_image(ctx, x - 80, y, 70, core.latest(FACE))
     else:
         portrait_narrator(ctx, x - 80, y, 70, 0.0)
     text(ctx, "語り", x + 10, y - 22, 26, (0.85, 0.87, 0.92, 1), align="left", bold=False)
@@ -495,7 +495,7 @@ def main():
         render(draw, total, None, os.path.join(OUT, "still"), frames=ts)
         return
     out = os.path.join(OUT, "shovel_pilot.mp4")
-    render(draw, total, tl.audio(total), out)
+    out = render(draw, total, tl.audio(total), out)
     print("wrote", out)
 
 

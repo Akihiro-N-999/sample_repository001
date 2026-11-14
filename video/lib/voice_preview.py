@@ -21,7 +21,7 @@ import wave
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from core import SR, Voicevox  # noqa: E402
+from core import SR, Voicevox, next_version  # noqa: E402
 
 
 def tables(md):
@@ -143,16 +143,16 @@ def main():
     peak = np.abs(audio).max()
     if peak > 0.95:
         audio *= 0.95 / peak
-    wav_path = os.path.join(out_dir, f"{slug}_voice.wav")
+    mp3 = next_version(os.path.join(out_dir, f"{slug}_voice.mp3"))  # 例: shovel_voice_v3.mp3
+    wav_path = mp3[:-4] + ".wav"
     with wave.open(wav_path, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes((audio * 32767).astype(np.int16).tobytes())
-    mp3 = os.path.join(out_dir, f"{slug}_voice.mp3")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav_path, "-b:a", "160k", mp3], check=True)
     os.remove(wav_path)
-    txt = os.path.join(out_dir, f"{slug}_voice.txt")
+    txt = mp3[:-4] + ".txt"  # 音声と同じ版の番号
     with open(txt, "w", encoding="utf-8") as f:
         f.write("\n".join(problems + report) + "\n")
     print(f"{len(report)} 台詞 / {len(audio) / SR:.1f} 秒 → {mp3}")

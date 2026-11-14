@@ -5,7 +5,7 @@
 
 保存先: `video/characters/akihiro/images/`（以下、ファイル名は1枚ずつ指定）
 
-**あなた（人）にお願いする作業は「生成して、指定のファイル名で保存し、アップロードする」だけです。** 緑の背景を抜く、アイコンを切り抜く、差分の位置ずれを確かめて補正する、といった加工は制作側（エンジンと品質校閲）で行います。
+**あなた（人）にお願いする作業は「生成して、ダウンロードしたまま（名前は変えずに）1つのフォルダに入れて ZIP にし、アップロードする」だけです。ファイル名は制作側で付けます（下の表の名前、`_v1` から始めて作り直すたびに番号を上げる）。** 緑の背景を抜く、アイコンを切り抜く、差分の位置ずれを確かめて補正する、といった加工は制作側（エンジンと品質校閲）で行います。
 
 ## 優先順位
 | 優先 | 画像 | 用途 |
@@ -54,7 +54,7 @@
 
 ## 1. 基準画像（バストアップ・困り顔寄りの真顔）
 
-- ファイル名: `akihiro_base.png`
+- ファイル名: `akihiro_base_v1.png`
 - 添付: 元イラスト（顔立ちの参考用）
 - 縦横比: 3:4
 
@@ -98,7 +98,7 @@
 
 ### 2-1. 半開き
 
-- ファイル名: `akihiro_mouth_half.png`
+- ファイル名: `akihiro_mouth_half_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、口だけを変えてください。
@@ -109,7 +109,7 @@
 
 ### 2-2. 開き
 
-- ファイル名: `akihiro_mouth_open.png`
+- ファイル名: `akihiro_mouth_open_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、口だけを変えてください。
@@ -120,7 +120,7 @@
 
 ### 2-3. 目を閉じる（まばたき用）
 
-- ファイル名: `akihiro_eyes_closed.png`
+- ファイル名: `akihiro_eyes_closed_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、目だけを変えてください。
@@ -139,7 +139,7 @@
 
 ### 3-1. 微笑み（口を閉じた版）
 
-- ファイル名: `akihiro_smile.png`
+- ファイル名: `akihiro_smile_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、表情だけを「微笑み」に変えてください。
@@ -151,8 +151,8 @@
 
 ### 3-2. 微笑み（口を開いた版）
 
-- ファイル名: `akihiro_smile_open.png`
-- 添付: 3-1 で作った `akihiro_smile.png`
+- ファイル名: `akihiro_smile_open_v1.png`
+- 添付: 3-1 で作った `akihiro_smile_v1.png`
 
 ```
 添付した画像（微笑みの表情）とまったく同じ画像で、口だけを変えてください。
@@ -165,7 +165,7 @@
 
 元画像の「眉をひそめた、少し疲れた真顔」の雰囲気に近づける。基準画像より困りを強める。
 
-- ファイル名: `akihiro_trouble.png`
+- ファイル名: `akihiro_trouble_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、表情だけを「困り顔」に変えてください。
@@ -178,8 +178,8 @@
 
 ### 3-4. 困り顔（口を開いた版）
 
-- ファイル名: `akihiro_trouble_open.png`
-- 添付: 3-3 で作った `akihiro_trouble.png`
+- ファイル名: `akihiro_trouble_open_v1.png`
+- 添付: 3-3 で作った `akihiro_trouble_v1.png`
 
 ```
 添付した画像（困り顔の表情）とまったく同じ画像で、口だけを変えてください。
@@ -190,7 +190,7 @@
 
 ### 3-5. 驚き（口を閉じた版）
 
-- ファイル名: `akihiro_surprise.png`
+- ファイル名: `akihiro_surprise_v1.png`
 
 ```
 添付した画像（基準画像）とまったく同じ画像で、表情だけを「驚き」に変えてください。
@@ -203,8 +203,8 @@
 
 ### 3-6. 驚き（口を開いた版）
 
-- ファイル名: `akihiro_surprise_open.png`
-- 添付: 3-5 で作った `akihiro_surprise.png`
+- ファイル名: `akihiro_surprise_open_v1.png`
+- 添付: 3-5 で作った `akihiro_surprise_v1.png`
 
 ```
 添付した画像（驚きの表情）とまったく同じ画像で、口だけを変えてください。
@@ -217,14 +217,14 @@
 
 ## 4. 字幕横の丸アイコン
 
-新しく生成しない。制作側で基準画像の顔の部分を丸く切り抜いて使う。口パク中は `akihiro_mouth_half.png` / `akihiro_mouth_open.png` から同じ位置を切り抜いて切り替える。
+新しく生成しない。制作側で基準画像の顔の部分を丸く切り抜いて使う。口パク中は `akihiro_mouth_half_v1.png` / `akihiro_mouth_open_v1.png` から同じ位置を切り抜いて切り替える。
 
 ---
 
 ## 5. 任意：YouTube サムネイル用の横長画像
 
-- ファイル名: `akihiro_thumbnail_base.png`
-- 添付: 基準画像（`akihiro_base.png`）
+- ファイル名: `akihiro_thumbnail_base_v1.png`
+- 添付: 基準画像（`akihiro_base_v1.png`）
 - 縦横比: 16:9
 - 文字は入れない。あとで文字を重ねる。
 
@@ -252,19 +252,19 @@
 
 ## 6. 保存とアップロード
 
-### 保存するファイルの一覧（`video/characters/akihiro/images/`）
+### 制作側が付ける保存名の一覧（`video/characters/akihiro/images/`）
 | ファイル名 | 内容 | 優先 |
 |---|---|---|
-| `akihiro_base.png` | 基準（真顔・口閉じ） | 必須 |
-| `akihiro_mouth_half.png` | 基準＋口半開き | 必須 |
-| `akihiro_mouth_open.png` | 基準＋口開き | 必須 |
-| `akihiro_eyes_closed.png` | 基準＋目閉じ | 必須 |
-| `akihiro_smile.png` / `akihiro_smile_open.png` | 微笑み（閉・開） | あとで |
-| `akihiro_trouble.png` / `akihiro_trouble_open.png` | 困り顔（閉・開） | あとで |
-| `akihiro_surprise.png` / `akihiro_surprise_open.png` | 驚き（閉・開） | あとで |
-| `akihiro_thumbnail_base.png` | サムネイル用（背景込み） | 任意 |
+| `akihiro_base_v1.png` | 基準（真顔・口閉じ） | 必須 |
+| `akihiro_mouth_half_v1.png` | 基準＋口半開き | 必須 |
+| `akihiro_mouth_open_v1.png` | 基準＋口開き | 必須 |
+| `akihiro_eyes_closed_v1.png` | 基準＋目閉じ | 必須 |
+| `akihiro_smile_v1.png` / `akihiro_smile_open_v1.png` | 微笑み（閉・開） | あとで |
+| `akihiro_trouble_v1.png` / `akihiro_trouble_open_v1.png` | 困り顔（閉・開） | あとで |
+| `akihiro_surprise_v1.png` / `akihiro_surprise_open_v1.png` | 驚き（閉・開） | あとで |
+| `akihiro_thumbnail_base_v1.png` | サムネイル用（背景込み） | 任意 |
 
-ファイル名を付け直すのが手間なら、生成した順にそのままアップロードし、「1枚目が基準、2枚目が半開き…」と添えてもらえれば制作側で名前を付ける。
+ダウンロードしたファイルの名前は変えなくてよい。ZIP の中身は制作側が絵を見てどの画像か判断し、表の名前で保存する。
 
 ### 受け取り後の確認項目
 生成した時点で、次のどれかに当てはまったら、その1枚だけ作り直す（位置のずれは制作側で測って、必要ならお願いする）。
