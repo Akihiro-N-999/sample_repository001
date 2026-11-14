@@ -2,7 +2,7 @@
 - 記事: https://note.com/bold_violet5431/n/nf71406ec6ac5
 - slug: shovel
 - 形式: 横長の通常動画、8分30秒〜10分（8分以上が標準）、漫画動画方式（video/STYLE.md）
-- いまの工程: 1. 企画（8分以上で作り直し中）
+- いまの工程: 1. 企画（G1 待ち。plan_v3：8分54秒）
 
 ## 作成済みの素材
 - 語り手アキヒロの基準画像（video/characters/akihiro/images/、リポジトリ外）
