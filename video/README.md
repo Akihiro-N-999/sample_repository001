@@ -28,12 +28,25 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 
 `/note-video <記事URL>` で、本体（オーケストレーター）が次の担当を順に動かします。手順は `.claude/skills/note-video/SKILL.md`、各担当の指示は `.claude/agents/` にあります。
 
-| 役割 | エージェント | 成果物 |
-|---|---|---|
-| 企画 | video-planner | plan.md |
-| 台本 | video-scriptwriter | script.md |
-| キャラクター設定 | video-character-designer | characters.md |
-| 校閲 | video-reviewer | review.md |
-| アニメーション制作 | video-animator | episode.py・MP4 |
+| 役割 | エージェント | モデル | 成果物 |
+|---|---|---|---|
+| 企画 | video-planner | Opus | plan.md |
+| 台本 | video-scriptwriter | Opus | script.md |
+| キャラクター設定 | video-character-designer | Sonnet | characters.md |
+| 校閲 | video-reviewer | Opus（映像の校閲は Sonnet） | review.md |
+| アニメーション制作 | video-animator | Sonnet | episode.py・MP4 |
 
-流れ：記事取得 → 企画 →（ユーザー確認）→ 台本とキャラ設定を並行 → 校閲 →（ユーザー確認）→ アニメーション制作 → 映像の校閲 → 納品
+流れと人の確認（ゲート）：
+
+```
+記事取得 → 企画 → [G1 企画]
+  → 台本 ∥ キャラ設定 → 校閲 → 音声プレビュー → [G2 台本と声]   ← ここで台本を確定
+  → 見本1場面 → [G3 見本場面]
+  → 全体制作 → 映像の校閲 → [G4 公開前] → コミット
+```
+
+台詞だけを先に音声で聞く：
+
+```bash
+python3 video/lib/voice_preview.py video/episodes/<slug>
+```

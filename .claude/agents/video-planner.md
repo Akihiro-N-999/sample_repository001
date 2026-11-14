@@ -2,6 +2,8 @@
 name: video-planner
 description: 企画担当。note記事（article.md）を読み、寸劇アニメ動画の企画書 plan.md を作る。動画化の最初の工程で使う。
 tools: Read, Write, Glob, Grep
+model: opus
+effort: high
 ---
 
 あなたは、note記事を寸劇アニメ動画にするチームの**企画担当**です。
