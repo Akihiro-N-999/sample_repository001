@@ -63,14 +63,16 @@ class Voicevox:
         with urllib.request.urlopen(req, timeout=120) as r:
             return r.read()
 
-    def synth(self, text, speaker, speed=1.0, pitch=0.0, intonation=1.15, volume=1.0):
-        key = hashlib.sha1(json.dumps([text, speaker, speed, pitch, intonation, volume]).encode()).hexdigest()
+    def synth(self, text, speaker, speed=1.0, pitch=0.0, intonation=1.15, volume=1.0, pause=1.0):
+        """1回の呼び出しで1つの発話を合成する。改行は読み上げの区切りにしない。"""
+        text = text.replace("<br>", "").replace("\n", "")
+        key = hashlib.sha1(json.dumps([text, speaker, speed, pitch, intonation, volume, pause]).encode()).hexdigest()
         path = os.path.join(self.cache_dir, key + ".npy") if self.cache_dir else None
         if path and os.path.exists(path):
             return np.load(path)
         q = json.loads(self._post("/audio_query", {"text": text, "speaker": speaker}))
         q.update(speedScale=speed, pitchScale=pitch, intonationScale=intonation,
-                 volumeScale=volume, outputSamplingRate=SR, outputStereo=False,
+                 volumeScale=volume, pauseLengthScale=pause, outputSamplingRate=SR, outputStereo=False,
                  prePhonemeLength=0.05, postPhonemeLength=0.08)
         wav = self._post("/synthesis", {"speaker": speaker}, q)
         with wave.open(io.BytesIO(wav)) as w:
@@ -78,6 +80,13 @@ class Voicevox:
         if path:
             np.save(path, a)
         return a
+
+
+def load_audio(path):
+    """mp3/wav などを ffmpeg で SR のモノラル float32 に読み込む。"""
+    raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", path, "-f", "f32le", "-ac", "1",
+                          "-ar", str(SR), "-"], check=True, capture_output=True).stdout
+    return np.frombuffer(raw, np.float32).copy()
 
 
 # ---------------------------------------------------------------- 効果音（その場で合成）
@@ -144,16 +153,23 @@ class Timeline:
         self.vv, self.cast = vv, cast
         self.t = 0.0
         self.lines, self.marks, self.scenes, self.clips = [], {}, [], []
+        self.voice_clips, self.bgms = [], []
 
-    def say(self, who, text, voice=None, ids=None, speed=None, gap=0.3, vol=1.0, **kw):
+    def say(self, who, text, voice=None, ids=None, speed=None, pitch=None, intonation=None,
+            pause=1.0, pre=0.0, gap=0.3, vol=1.0):
+        """台詞1つ＝合成1回。字幕(text)の改行は表示だけに効き、読み上げは途切れない。
+        pre/gap は台詞の前後の間（秒）。speed/pitch/intonation/pause は音声担当の調整値。"""
         whos = who if isinstance(who, list) else [who]
-        speak = (voice or text).replace("\n", "")
+        speak = voice or text
+        self.t += pre
         auds = []
         for i, w in enumerate(whos):
             c = self.cast[w]
             sid = ids[i] if ids else c["id"]
             auds.append(self.vv.synth(speak, sid, speed=speed or c.get("speed", 1.1),
-                                      pitch=c.get("pitch", 0.0), **kw))
+                                      pitch=c.get("pitch", 0.0) if pitch is None else pitch,
+                                      intonation=intonation or c.get("intonation", 1.15),
+                                      pause=pause))
         n = max(len(a) for a in auds)
         mix = np.zeros(n, np.float32)
         for a in auds:
@@ -167,6 +183,7 @@ class Timeline:
         ref = np.percentile(rms, 90) + 1e-6
         env = np.clip(rms / ref, 0, 1)
         self.clips.append((t0, mix * vol))
+        self.voice_clips.append((t0, t0 + dur))
         line = Line(whos, text, t0, t0 + dur, env)
         self.lines.append(line)
         self.t = t0 + dur + gap
@@ -179,10 +196,18 @@ class Timeline:
         self.marks[name] = (self.t if at is None else at, dur)
 
     def sfx(self, kind, at=None, vol=1.0):
-        self.clips.append((self.t if at is None else at, make_sfx(kind) * vol))
+        """kind は合成効果音の名前（dig / whoosh / thud / pop / chime / shock）か、音声ファイルのパス。"""
+        a = load_audio(kind) if os.path.splitext(kind)[1] else make_sfx(kind)
+        self.clips.append((self.t if at is None else at, a * vol))
 
     def scene(self, name, at=None):
         self.scenes.append((self.t if at is None else at, name))
+
+    def bgm(self, path, at=None, until=None, vol=0.18, fade=1.5, duck=0.4):
+        """BGMを at〜until 秒に流す（曲が短ければループ）。台詞の間は duck 倍に下げる。
+        until を省くと動画の終わりまで。"""
+        self.bgms.append(dict(path=path, t0=self.t if at is None else at, t1=until,
+                              vol=vol, fade=fade, duck=duck))
 
     # ---- 再生時の問い合わせ
     def prog(self, name, t, ease=ease_io):
@@ -230,6 +255,27 @@ class Timeline:
         for t0, a in self.clips:
             s = int(t0 * SR)
             out[s:s + len(a)] += a[:len(out) - s]
+        if self.bgms:
+            # 台詞が鳴っている区間（前後0.15秒の余裕つき）を求め、なめらかにBGMを下げる
+            speech = np.zeros(len(out), np.float32)
+            for a, b in self.voice_clips:
+                speech[max(0, int((a - 0.15) * SR)):int((b + 0.15) * SR)] = 1
+            k = int(0.25 * SR)
+            speech = np.convolve(speech, np.ones(k) / k, mode="same")
+            for m in self.bgms:
+                src = load_audio(m["path"])
+                s = int(m["t0"] * SR)
+                e = int((m["t1"] if m["t1"] is not None else total) * SR)
+                n = max(0, min(e, len(out)) - s)
+                if n == 0:
+                    continue
+                track = np.resize(src, n)
+                f = max(1, int(m["fade"] * SR))
+                g = np.ones(n, np.float32)
+                g[:min(f, n)] = np.linspace(0, 1, min(f, n))
+                g[-min(f, n):] = np.minimum(g[-min(f, n):], np.linspace(1, 0, min(f, n)))
+                g *= 1 - (1 - m["duck"]) * speech[s:s + n]
+                out[s:s + n] += track * g * m["vol"]
         peak = np.abs(out).max()
         if peak > 0.95:
             out *= 0.95 / peak
@@ -300,19 +346,46 @@ def vtext(ctx, s, x, y, size, color):
             text(ctx, ch, x, cy, size, color)
 
 
+NO_HEAD = set("、。，．・：；？！ー―…‥っゃゅょぁぃぅぇぉッャュョァィゥェォ）」』】〕〉》”’")
+NO_TAIL = set("（「『【〔〈《“‘")
+BREAK_AFTER = set("、。！？」』…")
+
+
 def wrap(ctx, s, size, maxw):
+    """字幕の折り返し。行頭禁則（、。っ」など）と行末禁則（「（など）を守り、
+    行の後半に読点などがあればそこで折る。明示の改行も尊重する。"""
     font(ctx, size)
     out = []
-    for para in s.split("\n"):
-        cur = ""
-        for ch in para:
-            if ctx.text_extents(cur + ch).x_advance > maxw and cur:
-                out.append(cur)
-                cur = ch
-            else:
-                cur += ch
-        out.append(cur)
+    for para in s.replace("<br>", "\n").split("\n"):
+        while para:
+            if ctx.text_extents(para).x_advance <= maxw:
+                out.append(para)
+                break
+            n = 1
+            while n < len(para) and ctx.text_extents(para[:n + 1]).x_advance <= maxw:
+                n += 1
+            # 行の後半40%に区切りのよい文字があれば、そこで折る
+            for j in range(n, int(n * 0.6), -1):
+                if para[j - 1] in BREAK_AFTER:
+                    n = j
+                    break
+            # 禁則：次の行頭に来てはいけない文字は前の行へ（ぶら下げ）、行末に来てはいけない文字は次の行へ
+            while n < len(para) and para[n] in NO_HEAD:
+                n += 1
+            while n > 1 and para[n - 1] in NO_TAIL:
+                n -= 1
+            out.append(para[:n])
+            para = para[n:]
     return out
+
+
+def caption_pages(ctx, s, size, maxw, max_lines=2):
+    """字幕をページ（最大 max_lines 行）に分け、各ページの文字数の割合を返す。"""
+    lines = wrap(ctx, s, size, maxw)
+    pages = [lines[i:i + max_lines] for i in range(0, len(lines), max_lines)]
+    counts = [sum(len(x) for x in p) for p in pages]
+    total = sum(counts) or 1
+    return pages, [c / total for c in counts]
 
 
 def star(ctx, x, y, r, rot=0.0):
@@ -650,7 +723,17 @@ def caption(ctx, tl, t, names, colors):
         rrect(ctx, bx + 30, by - 30, nw, 56, 16)
         fill_stroke(ctx, col[:3] + (k,), INK[:3] + (k,), 5)
         text(ctx, name, bx + 30 + nw / 2, by - 2, 34, (1, 1, 1, k))
-    lines = wrap(ctx, ln.text, 52, bw - 120)
+    # 長い台詞は字幕だけページ送りする（音声は1回の合成のまま途切れない）。
+    # ページの切り替えは、話している時間を文字数の割合で配分して決める。
+    pages, ratios = caption_pages(ctx, ln.text, 52, bw - 120)
+    frac = clamp((t - ln.t0) / max(ln.t1 - ln.t0, 1e-3))
+    acc, pi = 0.0, 0
+    for i, r in enumerate(ratios):
+        acc += r
+        pi = i
+        if frac < acc:
+            break
+    lines = pages[pi]
     y0 = by + bh / 2 - (len(lines) - 1) * 33
     for i, s in enumerate(lines):
         text(ctx, s, bx + 60, y0 + i * 66, 52, INK[:3] + (k,), align="left")
@@ -679,7 +762,10 @@ def render(draw, total, audio, out_path, frames=None):
     cmd = ["ffmpeg", "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "bgr0", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
            "-i", wav_path, "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-           "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest",
+           "-pix_fmt", "yuv420p",
+           # YouTube の基準（およそ -14 LUFS）に音量をそろえる
+           "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR),
+           "-c:a", "aac", "-b:a", "192k", "-shortest",
            "-movflags", "+faststart", out_path]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for f in range(n):

@@ -11,6 +11,7 @@ effort: medium
 ## 入力
 - `video/episodes/<slug>/script.md`（台本。台詞・読み・演出）
 - `video/episodes/<slug>/characters.md`（見た目・声）
+- `video/episodes/<slug>/sound.md`（台詞ごとの声の調整、効果音、BGM）
 - `video/lib/core.py`（共通エンジン）と、手本の `video/episodes/shovel/episode.py`
 - `video/README.md`（環境の準備手順）
 
@@ -18,7 +19,8 @@ effort: medium
 1. 環境を確かめる：VOICEVOX（`curl -s http://127.0.0.1:50021/version`）、`python3 -c "import cairo"`、日本語フォント。足りなければ README の手順で準備する。Docker デーモンが止まっていれば `dockerd` を起動してからコンテナを起動する。
 2. `video/episodes/<slug>/episode.py` を書く。
    - `CAST` / `NAMES` / `COLORS` / `CREDIT` は characters.md から写す。
-   - `build()` は script.md の表を上から順に `tl.say()` へ移す。字幕は「台詞」、合成には「読み」（あれば）を使う。
+   - `build()` は script.md の表を上から順に `tl.say()` へ移す。字幕は「台詞」、合成には「読み」（あれば）を使う。**台本の1行は必ず `tl.say()` 1回にする**（字幕の都合で分けない。長い字幕はエンジンが音声を切らずにページ送りする）。字幕に改行を足さない。
+   - sound.md の「台詞の調整」は `tl.say()` の `ids` / `speed` / `pitch` / `intonation` / `pause` / `pre` / `gap` に写す。「効果音」は `tl.sfx()`、「BGM」は `tl.bgm()` で入れる。BGMのファイルがまだ置かれていなければ、BGMなしで進めて報告する。
    - 演出は `tl.mark()` と描画関数で実装する。
 3. **台詞の文言は変えない。** 実装できない演出や、エンジン（core.py）の拡張が必要なときは、手本と既存エピソードを壊さない範囲で core.py に追加する。大きく変える必要があれば、手を付ける前にオーケストレーターに報告する。
 4. `--stills` で静止画を出し、一覧画像（例：4列の縮小グリッド）を作って自分の目で確かめる。人物の見切れ、字幕との重なり、描かれない要素がないか直す。

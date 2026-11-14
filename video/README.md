@@ -33,6 +33,7 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 | 企画 | video-planner | Opus | plan.md |
 | 台本 | video-scriptwriter | Opus | script.md |
 | キャラクター設定 | video-character-designer | Sonnet | characters.md |
+| 音声・BGM | video-sound-designer | Sonnet | sound.md |
 | 校閲 | video-reviewer | Opus（映像の校閲は Sonnet） | review.md |
 | アニメーション制作 | video-animator | Sonnet | episode.py・MP4 |
 
@@ -40,8 +41,8 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 
 ```
 記事取得 → 企画 → [G1 企画]
-  → 台本 ∥ キャラ設定 → 校閲 → 音声プレビュー → [G2 台本と声]   ← ここで台本を確定
-  → 見本1場面 → [G3 見本場面]
+  → 台本 ∥ キャラ設定 → 校閲 → 声の演出 → 音声プレビュー → [G2 台本と声]   ← ここで台本を確定
+  → 効果音・BGM → 見本1場面 → [G3 見本場面]
   → 全体制作 → 映像の校閲 → [G4 公開前] → コミット
 ```
 
@@ -50,3 +51,13 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 ```bash
 python3 video/lib/voice_preview.py video/episodes/<slug>
 ```
+
+## 読み上げと字幕
+
+- 台本の1行は1回の合成で読み上げます。字幕の改行やページの切り替えは表示だけで行い、読み上げを途中で切りません。
+- 長い台詞の字幕は、話している時間を文字数の割合で配分してページを切り替えます。行は読点・句点の位置で折り、行頭に「、」「。」などが来ないようにしています。
+
+## BGM・効果音
+
+- 音源は `video/assets/bgm/` と `video/assets/se/` に置きます（リポジトリには入れません。出どころと利用条件は sound.md に記録します）。
+- BGMは台詞の間だけ自動で音量が下がり、書き出し時に全体の音量を YouTube の基準（約 -14 LUFS）にそろえます。

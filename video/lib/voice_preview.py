@@ -9,6 +9,8 @@
 
 script.md の台本表（| # | 話者 | 台詞（字幕） | 読み | 声の調子 | 演出 |）と、
 characters.md の「声の割り当て」表（| 話者ID | 表示名 | VOICEVOX話者 | 基本ID | 話速 | 調子別ID |）を読む。
+sound.md があれば「台詞の調整」表（| # | 声ID | 話速 | 高さ | 抑揚 | 句読点の間 | 前の間 | 後の間 | メモ |）も反映する。
+空欄はキャラクターの既定値のまま。
 """
 import json
 import os
@@ -77,6 +79,25 @@ def load_lines(path):
     return lines
 
 
+def load_tuning(path):
+    """sound.md の「台詞の調整」表を {台詞番号: {...}} で返す。ファイルがなければ空。"""
+    if not os.path.exists(path):
+        return {}
+    for head, rows in tables(open(path, encoding="utf-8").read()):
+        if head[:2] == ["#", "声ID"] and "話速" in head:
+            idx = {h: i for i, h in enumerate(head)}
+            out = {}
+            for r in rows:
+                def num(col, cast=float):
+                    v = r[idx[col]] if col in idx and idx[col] < len(r) else ""
+                    return cast(v) if v.strip() else None
+                out[r[0]] = {"id": num("声ID", int), "speed": num("話速"), "pitch": num("高さ"),
+                             "intonation": num("抑揚"), "pause": num("句読点の間"),
+                             "pre": num("前の間"), "gap": num("後の間")}
+            return out
+    return {}
+
+
 def main():
     ep = sys.argv[1].rstrip("/")
     slug = os.path.basename(ep)
@@ -85,11 +106,12 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     voices = load_voices(os.path.join(ep, "characters.md"))
     lines = load_lines(os.path.join(ep, "script.md"))
+    tuning = load_tuning(os.path.join(ep, "sound.md"))
     vv = Voicevox(cache_dir=os.path.join(out_dir, "cache"))
 
-    gap = np.zeros(int(0.6 * SR), np.float32)
     chunks, report, problems = [], [], []
     for ln in lines:
+        tu = tuning.get(ln["no"], {})
         whos = ln["who"].replace(" ", "").split("+")
         speak = (ln["yomi"] or ln["text"]).replace("<br>", "").replace("\n", "")
         auds, ids = [], []
@@ -98,9 +120,10 @@ def main():
             if not v:
                 problems.append(f"#{ln['no']} 話者「{w}」が characters.md にありません")
                 continue
-            sid = next((i for k, i in v["styles"].items() if k in ln["tone"]), v["id"])
+            sid = tu.get("id") or next((i for k, i in v["styles"].items() if k in ln["tone"]), v["id"])
             ids.append(sid)
-            auds.append(vv.synth(speak, sid, speed=v["speed"]))
+            kw = {k: tu[k] for k in ("pitch", "intonation", "pause") if tu.get(k) is not None}
+            auds.append(vv.synth(speak, sid, speed=tu.get("speed") or v["speed"], **kw))
         if not auds:
             continue
         n = max(len(a) for a in auds)
@@ -109,7 +132,9 @@ def main():
             mix[:len(a)] += a
         if len(auds) > 1:
             mix *= 0.75
-        chunks += [mix, gap]
+        pre = tu.get("pre") or 0.0
+        gap = tu.get("gap") if tu.get("gap") is not None else 0.6
+        chunks += [np.zeros(int(pre * SR), np.float32), mix, np.zeros(int(gap * SR), np.float32)]
         q = json.loads(vv._post("/audio_query", {"text": speak, "speaker": ids[0]}))
         report.append(f"#{ln['no']}\t{ln['who']}\tID{','.join(map(str, ids))}\t{n / SR:.1f}秒\t"
                       f"{ln['text']}\n\t読み: {q.get('kana', '')}")

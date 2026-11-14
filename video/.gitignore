@@ -1,2 +1,5 @@
 out/
 __pycache__/
+# 音源は利用条件を sound.md に記録し、リポジトリには入れない
+assets/bgm/
+assets/se/
