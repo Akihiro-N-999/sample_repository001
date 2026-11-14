@@ -4,3 +4,5 @@ __pycache__/
 assets/bgm/
 assets/se/
 assets/images/
+# 立ち絵などの画像（本人の顔を含む）はリポジトリに入れない
+characters/*/images/
