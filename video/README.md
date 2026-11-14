@@ -34,16 +34,17 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 | 台本 | video-scriptwriter | Opus | script.md |
 | キャラクター設定 | video-character-designer | Sonnet | characters.md |
 | 音声・BGM | video-sound-designer | Sonnet | sound.md |
-| 校閲 | video-reviewer | Opus（映像の校閲は Sonnet） | review.md |
+| 内容校閲（何を言っているか・言ってよいか） | video-content-reviewer | Opus | review_content.md |
+| 品質校閲（どう聞こえるか・見えるか・台本どおりか） | video-quality-reviewer | Sonnet | review_quality.md |
 | アニメーション制作 | video-animator | Sonnet | episode.py・MP4 |
 
 流れと人の確認（ゲート）：
 
 ```
 記事取得 → 企画 → [G1 企画]
-  → 台本 ∥ キャラ設定 → 校閲 → 声の演出 → 音声プレビュー → [G2 台本と声]   ← ここで台本を確定
-  → 効果音・BGM → 見本1場面 → [G3 見本場面]
-  → 全体制作 → 映像の校閲 → [G4 公開前] → コミット
+  → 台本 ∥ キャラ設定 → 内容校閲 → 声の演出 → 音声プレビュー → 品質校閲 → [G2 台本と声]   ← ここで台本を確定
+  → 効果音・BGM → 内容校閲（音源の権利）→ 見本1場面 → 品質校閲 → [G3 見本場面]
+  → 全体制作 → 品質校閲 → 内容校閲（クレジット・説明欄）→ [G4 公開前] → コミット
 ```
 
 台詞だけを先に音声で聞く：
@@ -61,3 +62,12 @@ python3 video/lib/voice_preview.py video/episodes/<slug>
 
 - 音源は `video/assets/bgm/` と `video/assets/se/` に置きます（リポジトリには入れません。出どころと利用条件は sound.md に記録します）。
 - BGMは台詞の間だけ自動で音量が下がり、書き出し時に全体の音量を YouTube の基準（約 -14 LUFS）にそろえます。
+
+## 品質チェック（品質校閲が使う）
+
+```bash
+python3 video/lib/audio_check.py voice video/episodes/<slug>                                 # 台詞の音声（G2 の前）
+python3 video/lib/audio_check.py mix video/episodes/<slug> --mp4 video/out/<slug>.mp4      # 完成音声と実装（G4 の前）
+```
+
+文の途中での行の分け方、数字・英字の読み、台詞の長さと速さ、台詞中の無音、音割れ、台本と実装の一致、台詞の重なり、声とBGM・効果音の音量差、字幕のページ送り、MP4の音量を測り、`video/out/<slug>_check_*.md` に書き出します。

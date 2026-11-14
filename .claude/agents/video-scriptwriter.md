@@ -12,7 +12,7 @@ effort: high
 - `video/episodes/<slug>/plan.md`（企画書。場面構成と尺はこれに従う）
 - `video/episodes/<slug>/article.md`（記事本文。事実と数字の出どころ）
 - `video/episodes/<slug>/characters.md`（あれば。口調を合わせる）
-- `video/episodes/<slug>/review.md`（書き直しのとき。指摘をすべて反映する）
+- `video/episodes/<slug>/review_content.md` / `review_quality.md`（書き直しのとき。直す担当が「台本」の指摘をすべて反映する）
 
 ## 書き方のルール
 - 事実・数字・引用は記事の表現から変えない。記事にない事実を足さない。

@@ -154,6 +154,7 @@ class Timeline:
         self.t = 0.0
         self.lines, self.marks, self.scenes, self.clips = [], {}, [], []
         self.voice_clips, self.bgms = [], []
+        self.voice_idx = set()  # clips のうち台詞の音声の番号（品質チェックで声とそれ以外を分けるため）
 
     def say(self, who, text, voice=None, ids=None, speed=None, pitch=None, intonation=None,
             pause=1.0, pre=0.0, gap=0.3, vol=1.0):
@@ -182,6 +183,7 @@ class Timeline:
         rms = np.array([np.sqrt(np.mean(mix[i:i + hop] ** 2) + 1e-9) for i in range(0, n, hop)])
         ref = np.percentile(rms, 90) + 1e-6
         env = np.clip(rms / ref, 0, 1)
+        self.voice_idx.add(len(self.clips))
         self.clips.append((t0, mix * vol))
         self.voice_clips.append((t0, t0 + dur))
         line = Line(whos, text, t0, t0 + dur, env)
@@ -250,12 +252,15 @@ class Timeline:
                 cur = ln
         return cur
 
-    def audio(self, total):
+    def audio(self, total, parts=("voice", "sfx", "bgm"), normalize=True):
+        """音声を合成する。parts で声・効果音・BGMの一部だけを取り出せる（品質チェック用）。"""
         out = np.zeros(int(total * SR) + SR, np.float32)
-        for t0, a in self.clips:
+        for i, (t0, a) in enumerate(self.clips):
+            if ("voice" if i in self.voice_idx else "sfx") not in parts:
+                continue
             s = int(t0 * SR)
             out[s:s + len(a)] += a[:len(out) - s]
-        if self.bgms:
+        if self.bgms and "bgm" in parts:
             # 台詞が鳴っている区間（前後0.15秒の余裕つき）を求め、なめらかにBGMを下げる
             speech = np.zeros(len(out), np.float32)
             for a, b in self.voice_clips:
@@ -277,7 +282,7 @@ class Timeline:
                 g *= 1 - (1 - m["duck"]) * speech[s:s + n]
                 out[s:s + n] += track * g * m["vol"]
         peak = np.abs(out).max()
-        if peak > 0.95:
+        if normalize and peak > 0.95:
             out *= 0.95 / peak
         return out
 
