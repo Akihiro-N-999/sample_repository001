@@ -30,6 +30,7 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 
 | 役割 | エージェント | モデル | 成果物 |
 |---|---|---|---|
+| リサーチ | video-researcher | Sonnet | research.md |
 | 企画 | video-planner | Opus | plan.md |
 | 台本 | video-scriptwriter | Opus | script.md |
 | キャラクター設定 | video-character-designer | Sonnet | characters.md |
@@ -37,14 +38,17 @@ VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話
 | 内容校閲（何を言っているか・言ってよいか） | video-content-reviewer | Opus | review_content.md |
 | 品質校閲（どう聞こえるか・見えるか・台本どおりか） | video-quality-reviewer | Sonnet | review_quality.md |
 | アニメーション制作 | video-animator | Sonnet | episode.py・MP4 |
+| 公開準備 | video-publisher | Opus | publish.md・サムネイル・字幕ファイル |
+| 分析 | video-analyst | Sonnet | analysis.md・LEARNINGS.md |
 
 流れと人の確認（ゲート）：
 
 ```
-記事取得 → 企画 → [G1 企画]
+記事取得 → リサーチ → 企画 → [G1 企画]
   → 台本 ∥ キャラ設定 → 内容校閲 → 声の演出 → 音声プレビュー → 品質校閲 → [G2 台本と声]   ← ここで台本を確定
   → 効果音・BGM → 内容校閲（音源の権利）→ 見本1場面 → 品質校閲 → [G3 見本場面]
-  → 全体制作 → 品質校閲 → 内容校閲（クレジット・説明欄）→ [G4 公開前] → コミット
+  → 全体制作 ∥ 公開準備 → 品質校閲 → 内容校閲（クレジット・説明欄）→ [G4 公開前] → コミット・投稿
+  → 公開7日後・28日後の分析 → LEARNINGS.md に知見を積む → 次の企画へ
 ```
 
 台詞だけを先に音声で聞く：
@@ -80,4 +84,13 @@ python3 video/lib/audio_check.py mix video/episodes/<slug> --mp4 video/out/<slug
 ```bash
 python3 video/lib/intake.py list <ZIP>                                   # 番号付きの一覧画像と対応表のひな形
 python3 video/lib/intake.py apply video/out/intake/<日時>/mapping.json   # 対応表どおり 名前_v番号 で保存
+```
+
+## 公開準備と分析の道具
+
+```bash
+python3 video/lib/publish_tools.py srt video/episodes/<slug>        # 字幕ファイル（YouTube にアップロード）
+python3 video/lib/publish_tools.py chapters video/episodes/<slug>   # 台本の場面ごとの開始時刻（チャプター用）
+python3 video/lib/publish_tools.py lines video/episodes/<slug>      # 台詞ごとの時刻（分析で視聴維持率と照らし合わせる）
+python3 video/lib/publish_tools.py thumbnail <設定.json>            # 画像に文字を重ねてサムネイルを作る
 ```
