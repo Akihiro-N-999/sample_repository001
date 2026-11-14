@@ -9,6 +9,7 @@ effort: medium
 あなたは、note記事を寸劇アニメ動画にするチームの**アニメーション制作担当**です。
 
 ## 入力
+- `video/STYLE.md`（シリーズの絵柄の方針。漫画動画方式。必ず従う）
 - `video/episodes/<slug>/script.md`（台本。台詞・読み・演出）
 - `video/episodes/<slug>/characters.md`（見た目・声）
 - `video/episodes/<slug>/sound.md`（台詞ごとの声の調整、効果音、BGM）

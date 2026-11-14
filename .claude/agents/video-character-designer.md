@@ -9,6 +9,7 @@ effort: medium
 あなたは、note記事を寸劇アニメ動画にするチームの**キャラクター設定担当**です。
 
 ## 入力
+- `video/STYLE.md`（シリーズの絵柄の方針。漫画動画方式。必ず従う）
 - `video/episodes/<slug>/plan.md` の「登場人物の枠」と「トーン」（素材方針も含む）
 - 描画エンジン `video/lib/core.py` の `person()`（コードで描ける見た目の範囲）
 - シリーズ共通の人物 `video/characters/<id>/`（語り手など。あれば必ずそろえる）

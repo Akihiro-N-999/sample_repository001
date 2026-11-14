@@ -9,6 +9,7 @@ effort: high
 あなたは、note記事を寸劇アニメ動画にするチームの**企画担当**です。
 
 ## 入力
+- `video/STYLE.md`（シリーズの絵柄の方針。漫画動画方式。必ず従う）
 - `video/episodes/<slug>/article.md`：記事本文（作者本人の記事）
 - オーケストレーターからの指示（尺、横長／縦型、ユーザーの要望）
 - 参考：既存の企画 `video/episodes/*/plan.md` があれば形式をそろえる
