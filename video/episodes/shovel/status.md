@@ -5,8 +5,8 @@
 - いまの工程: 1. 企画（G1 待ち。plan_v5：案C・8分43秒。画風の見本を比較中）
 
 ## 作成済みの素材
-- 語り手アキヒロの基準画像（video/characters/akihiro/images/、リポジトリ外）
-- 辞令の場面：偉い人・行員A〜Cの立ち絵、偉い人・行員Aの口開き、場面イラスト1枚（video/assets/images/shovel/、リポジトリ外。指示書 image_prompts_A.md）
+- 語り手アキヒロの基準画像：コミカル版 akihiro_base_v2.png（採用）、写実版 akihiro_base_v1.jpg（不使用）（video/characters/akihiro/images/、リポジトリ外）
+- （画風変更により不使用）辞令の場面：偉い人・行員A〜Cの立ち絵、偉い人・行員Aの口開き、場面イラスト1枚（video/assets/images/shovel/、リポジトリ外。指示書 image_prompts_A.md）
 
 ## ゲート記録
 | ゲート | 日付 | 結果 | メモ |
