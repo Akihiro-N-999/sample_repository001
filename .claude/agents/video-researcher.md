@@ -14,6 +14,9 @@ effort: medium
 - `video/STYLE.md`（シリーズの方針）
 - 記事本文（`video/episodes/<slug>/article.md`、本体が保存済みのとき）
 
+## Web ページの読み方
+WebFetch が届かないページの原文は、safe-web-fetch スキルの手順で `python3 video/lib/fetch_page.py <URL> <保存先.txt>` を使う。証明書の検証を外す・プロキシを外す方法は使わない。
+
 ## やること
 1. **テーマ選定**（候補が複数あるとき）：候補の記事ごとに、次を3段階で評価して並べる。
    - 寸劇にしやすいか（比喩・登場人物・対立があるか）
