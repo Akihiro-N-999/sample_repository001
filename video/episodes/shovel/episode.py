@@ -17,6 +17,11 @@ from core import (H, W, INK, Timeline, Voicevox, caption, clamp, ease_back,  # n
 import cairo  # noqa: E402
 
 OUT = os.path.join(HERE, "..", "..", "out")
+# 語り手の顔（本人の写真から生成AIで作ったイラストの顔部分）。リポジトリには入れていない。
+# ファイルがなければ、コードで描いた顔アイコンを使う。
+FACE = os.path.join(HERE, "..", "..", "assets", "images", "akihiro_face.png")
+import core  # noqa: E402
+core.NARRATOR_IMAGE = FACE
 
 # ---------------------------------------------------------------- 配役（VOICEVOX 話者ID）
 CAST = {
@@ -31,7 +36,8 @@ NAMES = {"narr": "アキヒロ", "boss": "偉い人", "a": "行員A", "b": "行�
 COLORS = {"narr": hexc("#3D5A80"), "boss": hexc("#24324F"), "a": hexc("#3E78C8"),
           "b": hexc("#4E9A55"), "c": hexc("#C0563F"), "a+b+c": hexc("#8A6A3A")}
 CREDIT = ["音声：VOICEVOX:玄野武宏　VOICEVOX:青山龍星　VOICEVOX:白上虎太郎",
-          "VOICEVOX:春日部つむぎ　VOICEVOX:雨晴はう"]
+          "VOICEVOX:春日部つむぎ　VOICEVOX:雨晴はう",
+          "語り手のイラスト：生成AI（Gemini）で作成"]
 
 STAFF = [("a", "#4C83D1", "#7A4A2A"), ("b", "#5AA35F", "#4A3222"), ("c", "#C9654B", "#8B5A2B")]
 DOCS = ["融資", "窓口", "稟議", "苦情", "為替", "相続", "年金", "口座", "審査", "規程"]
@@ -413,6 +419,7 @@ def draw_title(ctx, tl, t):
     rrect(ctx, W / 2 - 190, 820, 380, 70, 35)
     fill_stroke(ctx, hexc("#F5C542", k), (1, 1, 1, k), 0.1)
     text(ctx, "寸劇アニメ（試作版）", W / 2, 855, 36, hexc("#1F2A44", k))
+    narrator_badge(ctx, 1640, 880, k)
 
 
 def draw_end(ctx, tl, t):
@@ -421,8 +428,25 @@ def draw_end(ctx, tl, t):
     k = tl.prog("end_in", t, ease_out)
     text(ctx, "この続きは、noteの本編で。", W / 2, 400, 80, (1, 1, 1, k))
     text(ctx, "「スコップを渡された人たち」", W / 2, 530, 56, hexc("#F5C542", k))
+    narrator_badge(ctx, W / 2, 720, k)
     for i, s in enumerate(CREDIT):
-        text(ctx, s, W / 2, 900 + i * 50, 32, (0.85, 0.87, 0.92, k), bold=False)
+        text(ctx, s, W / 2, 890 + i * 46, 30, (0.85, 0.87, 0.92, k), bold=False)
+
+
+def narrator_badge(ctx, x, y, k):
+    """「語り：アキヒロ」の顔つき表示（顔画像がなければ描いた顔）。"""
+    if k <= 0.01:
+        return
+    from core import portrait_narrator, portrait_image
+    ctx.push_group()
+    if os.path.exists(FACE):
+        portrait_image(ctx, x - 80, y, 70, FACE)
+    else:
+        portrait_narrator(ctx, x - 80, y, 70, 0.0)
+    text(ctx, "語り", x + 10, y - 22, 26, (0.85, 0.87, 0.92, 1), align="left", bold=False)
+    text(ctx, "アキヒロ", x + 10, y + 18, 40, (1, 1, 1, 1), align="left")
+    ctx.pop_group_to_source()
+    ctx.paint_with_alpha(k)
 
 
 def make_draw(tl):

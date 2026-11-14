@@ -709,6 +709,36 @@ def portrait_narrator(ctx, x, y, r, mouth):
     ctx.restore()
 
 
+NARRATOR_IMAGE = None  # 語り手アイコンに使う画像（PNG）。None ならコードで描いた顔を使う
+_img_cache = {}
+
+
+def load_image(path):
+    if path not in _img_cache:
+        _img_cache[path] = cairo.ImageSurface.create_from_png(path)
+    return _img_cache[path]
+
+
+def portrait_image(ctx, x, y, r, path, focus=(0.5, 0.56), speaking=0.0, ring=None):
+    """画像を円形に切り抜いて描く。focus は円の中心にする画像内の位置（0〜1）。
+    話している間は縁の色を濃くして、口が動かない代わりに話者を示す。"""
+    img = load_image(path)
+    iw, ih = img.get_width(), img.get_height()
+    sc = 2 * r / min(iw, ih)
+    ctx.save()
+    ctx.arc(x, y, r, 0, 2 * math.pi)
+    ctx.clip()
+    ctx.translate(x - focus[0] * iw * sc, y - focus[1] * ih * sc)
+    ctx.scale(sc, sc)
+    ctx.set_source_surface(img, 0, 0)
+    ctx.paint()
+    ctx.restore()
+    ctx.arc(x, y, r, 0, 2 * math.pi)
+    ctx.set_line_width(6 + 4 * speaking)
+    ctx.set_source_rgba(*(ring or hexc("#F5C542" if speaking else "#FFF6E5")))
+    ctx.stroke()
+
+
 def caption(ctx, tl, t, names, colors):
     ln = tl.caption(t)
     if not ln:
@@ -744,10 +774,30 @@ def caption(ctx, tl, t, names, colors):
         text(ctx, s, bx + 60, y0 + i * 66, 52, INK[:3] + (k,), align="left")
     ctx.restore()
     if "narr" in ln.who:
-        portrait_narrator(ctx, 190, 950, 95, tl.mouth("narr", t))
+        if NARRATOR_IMAGE and os.path.exists(NARRATOR_IMAGE):
+            portrait_image(ctx, 190, 950, 95, NARRATOR_IMAGE,
+                           speaking=1.0 if tl.speaking("narr", t) else 0.0)
+        else:
+            portrait_narrator(ctx, 190, 950, 95, tl.mouth("narr", t))
 
 
 # ---------------------------------------------------------------- 書き出し
+def loudnorm_filter(wav_path, target=-14.0, tp=-1.5, lra=11):
+    """2段階のラウドネス正規化。まず音声全体を測り、その値を使って音量をそろえる。
+    1回だけの正規化は無音の多い短い動画で小さめに仕上がるため。"""
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", wav_path, "-af",
+                        f"loudnorm=I={target}:TP={tp}:LRA={lra}:print_format=json", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    import re
+    m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, re.S)
+    if not m:
+        return f"loudnorm=I={target}:TP={tp}:LRA={lra}"
+    v = json.loads(m.group(0))
+    return (f"loudnorm=I={target}:TP={tp}:LRA={lra}:measured_I={v['input_i']}:"
+            f"measured_TP={v['input_tp']}:measured_LRA={v['input_lra']}:"
+            f"measured_thresh={v['input_thresh']}:offset={v['target_offset']}:linear=true")
+
+
 def render(draw, total, audio, out_path, frames=None):
     """draw(ctx, t) を毎フレーム呼んで MP4 に書き出す。frames=[t,...] なら静止画だけ出す。"""
     surf = cairo.ImageSurface(cairo.FORMAT_RGB24, W, H)
@@ -769,7 +819,7 @@ def render(draw, total, audio, out_path, frames=None):
            "-i", wav_path, "-c:v", "libx264", "-preset", "medium", "-crf", "20",
            "-pix_fmt", "yuv420p",
            # YouTube の基準（およそ -14 LUFS）に音量をそろえる
-           "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR),
+           "-af", loudnorm_filter(wav_path), "-ar", str(SR),
            "-c:a", "aac", "-b:a", "192k", "-shortest",
            "-movflags", "+faststart", out_path]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
