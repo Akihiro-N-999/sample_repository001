@@ -23,3 +23,17 @@ python3 video/episodes/shovel/episode.py --stills   # 確認用の静止画
 ## クレジット
 
 VOICEVOXの音声を使う動画には、使った話者ごとに「VOICEVOX:話者名」を表記します（エンドカードに入れています）。
+
+## 役割分担での制作（サブエージェント）
+
+`/note-video <記事URL>` で、本体（オーケストレーター）が次の担当を順に動かします。手順は `.claude/skills/note-video/SKILL.md`、各担当の指示は `.claude/agents/` にあります。
+
+| 役割 | エージェント | 成果物 |
+|---|---|---|
+| 企画 | video-planner | plan.md |
+| 台本 | video-scriptwriter | script.md |
+| キャラクター設定 | video-character-designer | characters.md |
+| 校閲 | video-reviewer | review.md |
+| アニメーション制作 | video-animator | episode.py・MP4 |
+
+流れ：記事取得 → 企画 →（ユーザー確認）→ 台本とキャラ設定を並行 → 校閲 →（ユーザー確認）→ アニメーション制作 → 映像の校閲 → 納品
