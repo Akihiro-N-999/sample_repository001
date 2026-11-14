@@ -2,7 +2,7 @@
 - 記事: https://note.com/bold_violet5431/n/nf71406ec6ac5
 - slug: shovel
 - 形式: 横長の通常動画、約4分、漫画動画方式（video/STYLE.md）
-- いまの工程: 1. 企画（G1 待ち）
+- いまの工程: 1. 企画（G1 待ち。plan.md 作成済み）
 
 ## 作成済みの素材
 - 語り手アキヒロの基準画像（video/characters/akihiro/images/、リポジトリ外）
