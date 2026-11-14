@@ -833,3 +833,105 @@ def render(draw, total, audio, out_path, frames=None):
     os.remove(wav_path)
     if p.returncode:
         raise RuntimeError("ffmpeg failed")
+
+
+# ---------------------------------------------------------------- 画像の立ち絵（画像生成AIで作った素材）
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "out", "cache", "images")
+
+
+def _pil_to_surface(im, key):
+    """PIL の RGBA 画像を cairo のサーフェスにする（PNG を経由してキャッシュ）。"""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    path = os.path.join(CACHE_DIR, key + ".png")
+    if not os.path.exists(path):
+        im.save(path)
+    return load_image(path)
+
+
+def key_green(path):
+    """緑一色の背景（#00FF00 付近）を透明にした PIL 画像を返す。縁の緑かぶりも抑える。"""
+    from PIL import Image
+    a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    greenness = g - np.maximum(r, b)          # 大きいほど背景
+    alpha = np.clip(1 - (greenness - 40) / 80, 0, 1)
+    g2 = np.minimum(g, np.maximum(r, b) + 10)  # 緑かぶりを抑える
+    out = np.dstack([r, g2, b, alpha * 255]).astype(np.uint8)
+    return Image.fromarray(out, "RGBA")
+
+
+def mouth_patch(base_path, open_path, feather=0.35):
+    """口開きの差分から口のまわりだけを取り出した RGBA 画像を返す。
+    差分画像は眉や目の線も少し描き直されていることが多いので、画像を丸ごと差し替えると
+    口パクのたびに目元がちらつく。口の範囲だけを楕円でぼかして切り取り、基準画像に重ねる。"""
+    from PIL import Image
+    base = np.asarray(Image.open(base_path).convert("RGB")).astype(np.int32)
+    opn = key_green(open_path)
+    o = np.asarray(opn).astype(np.int32)
+    h, w = base.shape[:2]
+    diff = np.abs(base - o[..., :3]).sum(2) > 150
+    # 口は顔の下半分の中央にあるので、その範囲の強い差だけを見る
+    y0, y1, x0, x1 = int(h * 0.3), int(h * 0.75), int(w * 0.3), int(w * 0.7)
+    ys, xs = np.where(diff[y0:y1, x0:x1])
+    if len(ys) < 20:
+        raise ValueError(f"口の差が見つからない: {open_path}")
+    # 外れ値（眉の描き直しなど）を除くため、差の多い行の塊のうち最も下のものを口とみなす
+    rows = np.bincount(ys, minlength=y1 - y0)
+    thr = max(3, rows.max() * 0.15)
+    on = rows > thr
+    blocks, start = [], None
+    for i, v in enumerate(list(on) + [False]):
+        if v and start is None:
+            start = i
+        elif not v and start is not None:
+            blocks.append((start, i))
+            start = None
+    by0, by1 = max(blocks, key=lambda b: (b[1] - b[0]) * (b[0] + 1) ** 0.5)
+    sel = (ys >= by0) & (ys < by1)
+    cx, cy = xs[sel].mean() + x0, (by0 + by1) / 2 + y0
+    rx = (np.percentile(xs[sel], 90) - np.percentile(xs[sel], 10)) / 2 * 1.4 + 12
+    ry = (by1 - by0) / 2 * 1.5 + 12
+    # 輪郭線の描き直しを拾って範囲が広がりすぎないよう、口の大きさの上限で抑える
+    rx, ry = min(rx, w * 0.14), min(ry, h * 0.07)
+    yy, xx = np.mgrid[0:h, 0:w]
+    dist = np.sqrt(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2)
+    m = np.clip((1 - dist) / feather, 0, 1)
+    out = o.copy()
+    out[..., 3] = (out[..., 3] * m).astype(np.int32)
+    return Image.fromarray(out.astype(np.uint8), "RGBA"), (cx, cy, rx, ry)
+
+
+class Tachie:
+    """緑背景の立ち絵（基準画像＋口開き差分）。口開き差分がない人物は口が動かない。"""
+
+    def __init__(self, base_path, open_path=None):
+        name = os.path.splitext(os.path.basename(base_path))[0]
+        stamp = str(int(os.path.getmtime(base_path)))
+        self.base = _pil_to_surface(key_green(base_path), f"{name}_{stamp}_key")
+        self.mouth = None
+        if open_path and os.path.exists(open_path):
+            patch, self.mouth_box = mouth_patch(base_path, open_path)
+            self.mouth = _pil_to_surface(patch, f"{name}_{stamp}_mouth")
+        self.w, self.h = self.base.get_width(), self.base.get_height()
+
+    def draw(self, ctx, x, y, height, mouth=0.0, alpha=1.0, dim=0.0, bob=0.0, flip=False):
+        """下端中央を (x, y) に合わせ、高さ height で描く。dim は話していない人を薄くする量。"""
+        k = height / self.h
+        if k <= 1e-3 or alpha <= 0.01:
+            return
+        ctx.save()
+        ctx.translate(x, y - bob)
+        ctx.scale(-k if flip else k, k)
+        ctx.translate(-self.w / 2, -self.h)
+        ctx.push_group()
+        ctx.set_source_surface(self.base, 0, 0)
+        ctx.paint()
+        if self.mouth is not None and mouth > 0.2:
+            ctx.set_source_surface(self.mouth, 0, 0)
+            ctx.paint()
+        if dim > 0:
+            ctx.set_source_rgba(1, 1, 1, dim)
+            ctx.mask_surface(self.base, 0, 0)
+        ctx.pop_group_to_source()
+        ctx.paint_with_alpha(alpha)
+        ctx.restore()
