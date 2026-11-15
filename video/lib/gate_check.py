@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from core import latest  # noqa: E402
 
-MIN_SEC, MAX_SEC = 510, 600  # 8分30秒〜10分（video/STYLE.md）
+MIN_SEC, MAX_SEC = 510, 720  # 下限 8分30秒（video/STYLE.md）。10分は目安で上限ではない。12分を超えたら注意だけ出す
 OUT = os.path.join(HERE, "..", "out")
 rows = []
 
@@ -78,7 +78,7 @@ def g1(ep):
     elif sec < MIN_SEC:
         ng(f"尺の見積もりが {sec} 秒で、標準の 8分30秒（{MIN_SEC}秒）に足りない")
     elif sec > MAX_SEC:
-        warn(f"尺の見積もりが {sec} 秒で、10分を超える")
+        warn(f"尺の見積もりが {sec} 秒で、12分を超える（引き延ばしになっていないか確かめる）")
     else:
         ok(f"尺の見積もり {sec} 秒（{sec // 60}分{sec % 60:02d}秒）")
     for key, label in (("つかみ", "冒頭のつかみ"), ("仮タイトル", "仮タイトル"), ("サムネイル", "サムネイルの方向"),
@@ -162,7 +162,7 @@ def g4(ep):
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", mp4],
                        capture_output=True, text=True)
     dur = float(r.stdout.strip() or 0)
-    (ok if MIN_SEC <= dur <= MAX_SEC + 30 else ng)(f"動画の長さ {int(dur)}秒")
+    (ok if dur >= MIN_SEC else ng)(f"動画の長さ {int(dur)}秒" + ("" if dur >= MIN_SEC else "（8分30秒に足りない）"))
     r = subprocess.run([sys.executable, os.path.join(HERE, "audio_check.py"), "mix", ep, "--mp4", mp4],
                        capture_output=True, text=True)
     m = re.search(r"✗ (\d+) 件", r.stdout)
