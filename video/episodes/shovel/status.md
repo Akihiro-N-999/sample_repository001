@@ -5,6 +5,7 @@
 - いまの工程: 5. 効果音・BGMの設計／エンジンの拡張／画像の生成（偉い人の基準画像から）→ 見本場面（G3）
 
 ## 作成済みの素材
+- 効果音13個（効果音ラボ、video/assets/se/）とBGM 3曲（甘茶の音楽工房、video/assets/bgm/）：そろった（2026-11-15、リポジトリ外）
 - 語り手アキヒロの基準画像：コミカル版 akihiro_base_v2.png（採用）、写実版 akihiro_base_v1.jpg（不使用）（video/characters/akihiro/images/、リポジトリ外）
 - （画風変更により不使用）辞令の場面：偉い人・行員A〜Cの立ち絵、偉い人・行員Aの口開き、場面イラスト1枚（video/assets/images/shovel/、リポジトリ外。指示書 image_prompts_A.md）
 
