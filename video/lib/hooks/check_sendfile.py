@@ -22,7 +22,7 @@ prompts = [f for f in files if "image_prompts" in f and f"{os.sep}requests{os.se
 if prompts:
     print("画像の指示書をそのまま送ることはできません: " + ", ".join(prompts)
           + "\n→ video-image-request スキル（python3 video/lib/image_request.py <エピソード> <依頼の名前> <番号…>）で、"
-            "今回作る画像だけの依頼書（ZIP の依頼文つき）を作り、requests/ の依頼書を送ってください。", file=sys.stderr)
+            "今回作る画像だけの依頼書を作り、requests/ の依頼書を送ってください。", file=sys.stderr)
     sys.exit(2)
 if bad:
     print("番号付きでないファイルは送れません（上書き防止のルール）: " + ", ".join(bad)
