@@ -140,10 +140,24 @@ def make_sfx(kind):
     raise ValueError(kind)
 
 
+def phone_filter(a, lo=350.0, hi=3000.0):
+    """電話らしいこもった音：帯域を絞り（lo〜hi Hz）、軽くひずませ、音量は元にそろえる。"""
+    n = len(a)
+    spec = np.fft.rfft(a, n=n)
+    f = np.fft.rfftfreq(n, 1 / SR)
+    g = 1 / (1 + (lo / np.maximum(f, 1e-3)) ** 4) / (1 + (f / hi) ** 4)
+    b = np.fft.irfft(spec * g, n=n).astype(np.float32)
+    r0, r1 = np.sqrt(np.mean(a ** 2) + 1e-12), np.sqrt(np.mean(b ** 2) + 1e-12)
+    b = np.tanh(b * (r0 / r1) * 2.2) / 2.2 * 1.6
+    b *= r0 / (np.sqrt(np.mean(b ** 2)) + 1e-12)
+    return b.astype(np.float32)
+
+
 # ---------------------------------------------------------------- タイムライン
 class Line:
-    def __init__(self, who, text, t0, t1, env):
+    def __init__(self, who, text, t0, t1, env, face=None):
         self.who, self.text, self.t0, self.t1, self.env = who, text, t0, t1, env
+        self.face = face
 
 
 class Timeline:
@@ -157,9 +171,11 @@ class Timeline:
         self.voice_idx = set()  # clips のうち台詞の音声の番号（品質チェックで声とそれ以外を分けるため）
 
     def say(self, who, text, voice=None, ids=None, speed=None, pitch=None, intonation=None,
-            pause=1.0, pre=0.0, gap=0.3, vol=1.0):
+            pause=1.0, pre=0.0, gap=0.3, vol=1.0, phone=False, face=None):
         """台詞1つ＝合成1回。字幕(text)の改行は表示だけに効き、読み上げは途切れない。
-        pre/gap は台詞の前後の間（秒）。speed/pitch/intonation/pause は音声担当の調整値。"""
+        pre/gap は台詞の前後の間（秒）。speed/pitch/intonation/pause は音声担当の調整値。
+        phone=True で電話越しのこもった声にする。face は話者の表情名（tl.face() で引ける。
+        複数人の台詞なら {人物: 表情名} の辞書）。"""
         whos = who if isinstance(who, list) else [who]
         speak = voice or text
         self.t += pre
@@ -177,6 +193,8 @@ class Timeline:
             mix[:len(a)] += a
         if len(auds) > 1:
             mix *= 0.75
+        if phone:
+            mix = phone_filter(mix)
         t0 = self.t
         dur = n / SR
         hop = SR // FPS
@@ -186,7 +204,7 @@ class Timeline:
         self.voice_idx.add(len(self.clips))
         self.clips.append((t0, mix * vol))
         self.voice_clips.append((t0, t0 + dur))
-        line = Line(whos, text, t0, t0 + dur, env)
+        line = Line(whos, text, t0, t0 + dur, env, face)
         self.lines.append(line)
         self.t = t0 + dur + gap
         return t0, t0 + dur
@@ -241,6 +259,17 @@ class Timeline:
                 v = ln.env[min(k, len(ln.env) - 1)]
                 return 0.0 if v < 0.25 else (0.55 if v < 0.6 else 1.0)
         return 0.0
+
+    def face(self, who, t, default="default"):
+        """who の表情名。who が最後に話した台詞（t までに始まったもの）の face を、
+        次に話すまで保つ。face の指定がなければ default。"""
+        cur = default
+        for ln in self.lines:
+            if ln.t0 > t:
+                break
+            if who in ln.who and ln.face:
+                cur = ln.face.get(who, default) if isinstance(ln.face, dict) else ln.face
+        return cur
 
     def speaking(self, who, t):
         return any(who in ln.who and ln.t0 <= t < ln.t1 for ln in self.lines)
@@ -950,39 +979,134 @@ def mouth_patch(base_path, open_path, feather=0.35):
     return Image.fromarray(out.astype(np.uint8), "RGBA"), (cx, cy, rx, ry)
 
 
-class Tachie:
-    """緑背景の立ち絵（基準画像＋口開き差分）。口開き差分がない人物は口が動かない。"""
+def eye_patch(base_path, blink_path, feather=0.4):
+    """目閉じの差分から、両目のまわりだけを取り出した RGBA 画像を返す。目の位置は差分から自動で見つける。
+    顔の上半分で基準画像と差のある画素を左右2つの塊に分け、塊ごとに楕円でぼかして切り取る。"""
+    from PIL import Image
+    base = np.asarray(Image.open(base_path).convert("RGB")).astype(np.int32)
+    blk = key_green(blink_path)
+    o = np.asarray(blk).astype(np.int32)
+    h, w = base.shape[:2]
+    diff = (np.abs(base - o[..., :3]).sum(2) > 150) & (o[..., 3] > 200)  # 背景の緑かぶり除去による差を除く
+    y0, y1, x0, x1 = int(h * 0.05), int(h * 0.6), int(w * 0.2), int(w * 0.8)
+    ys, xs = np.where(diff[y0:y1, x0:x1])
+    if len(ys) < 20:
+        raise ValueError(f"目の差が見つからない: {blink_path}")
+    ys, xs = ys + y0, xs + x0
+    # 左右に分ける（x の最大の隙間で割る。隙間が小さければ1つの塊）
+    order = np.sort(xs)
+    gaps = np.diff(order)
+    clusters = [(ys, xs)]
+    if len(gaps) and gaps.max() > w * 0.03:
+        cut = order[gaps.argmax()] + gaps.max() / 2
+        clusters = [(ys[xs < cut], xs[xs < cut]), (ys[xs >= cut], xs[xs >= cut])]
+    yy, xx = np.mgrid[0:h, 0:w]
+    m = np.zeros((h, w), np.float32)
+    boxes = []
+    for cy_, cx_ in clusters:
+        if len(cy_) < 10:
+            continue
+        cx, cy = (np.percentile(cx_, 5) + np.percentile(cx_, 95)) / 2, (np.percentile(cy_, 5) + np.percentile(cy_, 95)) / 2
+        rx = (np.percentile(cx_, 95) - np.percentile(cx_, 5)) / 2 * 1.4 + 10
+        ry = (np.percentile(cy_, 95) - np.percentile(cy_, 5)) / 2 * 1.5 + 10
+        rx, ry = min(rx, w * 0.12), min(ry, h * 0.06)
+        dist = np.sqrt(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2)
+        m = np.maximum(m, np.clip((1 - dist) / feather, 0, 1))
+        boxes.append((cx, cy, rx, ry))
+    out = o.copy()
+    out[..., 3] = (out[..., 3] * m).astype(np.int32)
+    return Image.fromarray(out.astype(np.uint8), "RGBA"), boxes
 
-    def __init__(self, base_path, open_path=None):
-        base_path = latest(base_path)
-        open_path = latest(open_path) if open_path else None
+
+class Tachie:
+    """緑背景の立ち絵。基準画像に、口の差分（半開き・開き）と目閉じの差分を、
+    口・目のまわりだけ重ねる。差分がなければその動きはしない。
+
+    使い方
+      Tachie(base, open)                              従来どおり（口は閉じ／開き）
+      Tachie(base, open, half=..., blink=...)         口3段階＋まばたき
+      Tachie({"default": dict(base=.., open=.., half=.., blink=..),
+              "angry": dict(base=.., open=..), ...})  表情ごとの組（先頭が既定の表情）
+    draw(..., face="angry", t=秒) で表情を選ぶ。t を渡すとまばたきする（数秒おきにランダム。
+    seed が同じなら毎回同じ間隔）。口は mouth（tl.mouth の値）で 閉じ(<=0.2)／半開き／開き(>0.8)。"""
+
+    def __init__(self, base_path, open_path=None, half=None, blink=None, seed=None):
+        if isinstance(base_path, dict):
+            faces = base_path
+        else:
+            faces = {"default": dict(base=base_path, open=open_path, half=half, blink=blink)}
+        self.faces = {}
+        for fname, d in faces.items():
+            if isinstance(d, str):
+                d = dict(base=d)
+            self.faces[fname] = self._load(d)
+        self.default = next(iter(self.faces))
+        f0 = self.faces[self.default]
+        self.base, self.mouth, self.w, self.h = f0["base"], f0["open"], f0["w"], f0["h"]
+        self.mouth_box = f0.get("mouth_box")
+        rng = np.random.default_rng(seed if seed is not None else
+                                    int(hashlib.sha1(str(list(faces)[0]).encode()).hexdigest()[:8], 16))
+        ts, t = [], rng.uniform(1.0, 3.0)
+        while t < 1500:
+            ts.append(t)
+            t += rng.uniform(2.5, 5.5)
+        self.blinks = np.array(ts)
+        self.blink_dur = 0.16
+
+    @staticmethod
+    def _load(d):
+        base_path = latest(d["base"])
         name = os.path.splitext(os.path.basename(base_path))[0]
         stamp = str(int(os.path.getmtime(base_path)))
-        self.base = _pil_to_surface(key_green(base_path), f"{name}_{stamp}_key")
-        self.mouth = None
-        if open_path and os.path.exists(open_path):
-            patch, self.mouth_box = mouth_patch(base_path, open_path)
-            self.mouth = _pil_to_surface(patch, f"{name}_{stamp}_mouth")
-        self.w, self.h = self.base.get_width(), self.base.get_height()
+        out = dict(base=_pil_to_surface(key_green(base_path), f"{name}_{stamp}_key"),
+                   open=None, half=None, blink=None)
+        for k in ("open", "half"):
+            pth = latest(d[k]) if d.get(k) else None
+            if pth and os.path.exists(pth):
+                patch, box = mouth_patch(base_path, pth)
+                out[k] = _pil_to_surface(patch, f"{name}_{stamp}_mouth_{os.path.basename(pth)}_{int(os.path.getmtime(pth))}")
+                if k == "open":
+                    out["mouth_box"] = box
+        pth = latest(d["blink"]) if d.get("blink") else None
+        if pth and os.path.exists(pth):
+            patch, _ = eye_patch(base_path, pth)
+            out["blink"] = _pil_to_surface(patch, f"{name}_{stamp}_eyes_{os.path.basename(pth)}_{int(os.path.getmtime(pth))}")
+        out["w"], out["h"] = out["base"].get_width(), out["base"].get_height()
+        return out
 
-    def draw(self, ctx, x, y, height, mouth=0.0, alpha=1.0, dim=0.0, bob=0.0, flip=False):
-        """下端中央を (x, y) に合わせ、高さ height で描く。dim は話していない人を薄くする量。"""
-        k = height / self.h
+    def blinking(self, t):
+        if t is None:
+            return False
+        i = np.searchsorted(self.blinks, t, side="right") - 1
+        return i >= 0 and t - self.blinks[i] < self.blink_dur
+
+    def draw(self, ctx, x, y, height, mouth=0.0, alpha=1.0, dim=0.0, bob=0.0, flip=False,
+             face=None, t=None):
+        """下端中央を (x, y) に合わせ、高さ height で描く。dim は話していない人を薄くする量。
+        face は表情名（なければ既定）、t は時刻（まばたき用。None ならまばたきしない）。"""
+        f = self.faces.get(face) or self.faces[self.default]
+        k = height / f["h"]
         if k <= 1e-3 or alpha <= 0.01:
             return
         ctx.save()
         ctx.translate(x, y - bob)
         ctx.scale(-k if flip else k, k)
-        ctx.translate(-self.w / 2, -self.h)
+        ctx.translate(-f["w"] / 2, -f["h"])
         ctx.push_group()
-        ctx.set_source_surface(self.base, 0, 0)
+        ctx.set_source_surface(f["base"], 0, 0)
         ctx.paint()
-        if self.mouth is not None and mouth > 0.2:
-            ctx.set_source_surface(self.mouth, 0, 0)
+        if f["blink"] is not None and self.blinking(t):
+            ctx.set_source_surface(f["blink"], 0, 0)
+            ctx.paint()
+        mp = None
+        if mouth > 0.2:
+            mp = f["half"] if (f["half"] is not None and mouth <= 0.8) else f["open"]
+        if mp is not None:
+            ctx.set_source_surface(mp, 0, 0)
             ctx.paint()
         if dim > 0:
             ctx.set_source_rgba(1, 1, 1, dim)
-            ctx.mask_surface(self.base, 0, 0)
+            ctx.mask_surface(f["base"], 0, 0)
         ctx.pop_group_to_source()
         ctx.paint_with_alpha(alpha)
         ctx.restore()
