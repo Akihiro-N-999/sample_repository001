@@ -107,10 +107,17 @@ def cmd_apply(mp):
         src = m["file"]
         name = m["name"]
         ext = os.path.splitext(src)[1].lower()
+        convert = ext == ".webp"  # エンジン（cairo）は webp を読めないので PNG にする
+        if convert:
+            ext = ".png"
         if os.path.splitext(name)[1].lower() != ext:
             name = os.path.splitext(name)[0] + ext  # 拡張子は元の形式に合わせる
         dst = next_version(os.path.join(dest_dir, name))
-        shutil.copy2(src, dst)
+        if convert:
+            from PIL import Image
+            Image.open(src).convert("RGBA").save(dst)
+        else:
+            shutil.copy2(src, dst)
         log.append(f"#{m['no']} {m['original']} → {dst}")
     out = os.path.join(os.path.dirname(mp), "applied.txt")
     with open(out, "w", encoding="utf-8") as f:
