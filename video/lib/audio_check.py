@@ -28,6 +28,18 @@ END_CHARS = set("。！？!?…」』）)〜♪っッー")
 PUNCT = set("、。！？!?…‥・「」『』（）()〜ー　 ")
 MAX_SEC, MAX_CPS, LONG_PAUSE = 8.0, 8.0, 0.6
 
+# よくある読み間違い：(台詞の文字列の正規表現, 読み（カナ）に出たら間違いとみなす正規表現, 説明)
+# 見つけたら追記していく（ユーザーや校閲が気づいた読み間違いは、次から機械で拾えるようにする）
+KNOWN_MISREADINGS = [
+    (r"(筋|理屈|話|意見|主張|道理)[はがも、]*、?\s*通(っ|る|ら|り)", r"カヨ", "「筋が通る」などの「通る」を「かよう」と読んでいる（とおる）"),
+    (r"碑", r"イシブミ", "「碑」を「いしぶみ」と読んでいる（ひ）"),
+    (r"AI", r"(?<![エー])アイ(?!ディア)", "「AI」を「アイ」と読んでいる（エーアイ）"),
+    (r"墓穴", r"ハカアナ", "「墓穴」を「はかあな」と読んでいる（ぼけつ）"),
+    (r"稟議", r"ヒンギ|リンケ", "「稟議」の読み（りんぎ）"),
+    (r"他人事", r"タニンゴト", "「他人事」の読み（ひとごと）"),
+    (r"一段落", r"ヒトダンラク", "「一段落」の読み（いちだんらく）"),
+]
+
 
 def db(x):
     return 20 * np.log10(max(x, 1e-9))
@@ -110,6 +122,9 @@ def check_voice(ep):
         if np.abs(a).max() >= 0.99:
             items.append("✗ 音割れのおそれ（ピークが上限）：音量か抑揚を下げる")
         q = json.loads(vv._post("/audio_query", {"text": speak, "speaker": sid}))
+        for tpat, kpat, why in KNOWN_MISREADINGS:
+            if re.search(tpat, text) and re.search(kpat, q.get("kana", "")):
+                items.append(f"✗ 読み間違いのおそれ：{why}。読み欄で直す")
         n_x += sum(x.startswith("✗") for x in items)
         n_t += sum(x.startswith("△") for x in items)
         rep.append((ln, items, dur, q.get("kana", "")))
