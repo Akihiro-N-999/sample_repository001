@@ -932,7 +932,14 @@ def key_green(path):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     greenness = g - np.maximum(r, b)          # 大きいほど背景
-    alpha = np.clip(1 - (greenness - 40) / 80, 0, 1)
+    # Gemini の緑は #00FF00 とは限らない（暗い緑 #45AF4D になることがある）ので、
+    # 四隅の背景の緑の強さを測り、それに合わせて抜く範囲を決める
+    k = max(8, min(a.shape[:2]) // 20)
+    corners = np.concatenate([greenness[:k, :k].ravel(), greenness[:k, -k:].ravel(),
+                              greenness[-k:, :k].ravel(), greenness[-k:, -k:].ravel()])
+    gbg = float(np.median(corners))
+    lo, hi = max(20.0, gbg * 0.3), max(60.0, gbg * 0.7)
+    alpha = np.clip((hi - greenness) / (hi - lo), 0, 1)
     g2 = np.minimum(g, np.maximum(r, b) + 10)  # 緑かぶりを抑える
     out = np.dstack([r, g2, b, alpha * 255]).astype(np.uint8)
     return Image.fromarray(out, "RGBA")
