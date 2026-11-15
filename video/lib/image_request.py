@@ -68,6 +68,9 @@ def main():
             out += [f"### {no}. {it['title']}", ""]
             if it["attach"]:
                 out += [f"- 添付：{it['attach']}", ""]
+            if "基準画像" in it["title"]:
+                out += ["- **この1枚は2〜3案作って、いちばん良い1枚を選んでください。ZIP に入れるのは選んだ1枚だけです。**"
+                        "（差分はこの1枚をもとに作るので、ここで顔と服を決めます）", ""]
             out += ["```", it["prompt"], "```", ""]
         out += [f"### この会話の ZIP の依頼文（今回の {len(its)} 枚）", "", "```",
                 "この会話で作った画像のうち、次の画像を、それぞれ指定の名前を付けて、1つの ZIP ファイルにまとめ、"
@@ -82,7 +85,7 @@ def main():
     os.makedirs(rdir, exist_ok=True)
     path = next_version(os.path.join(rdir, f"{name}.md"))
     open(path, "w", encoding="utf-8").write("\n".join(out))
-    print(f"[OK] {len(wanted)}枚・{len(groups)}会話 → {path}")
+    print(f"[OK] {len(wanted)}枚・{len(groups)}会話 → {path}（指示書の全体は {len(allitems)}枚）")
 
 
 if __name__ == "__main__":
