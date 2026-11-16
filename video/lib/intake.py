@@ -106,8 +106,11 @@ def cmd_apply(mp):
         os.makedirs(dest_dir, exist_ok=True)
         src = m["file"]
         name = m["name"]
+        while os.path.splitext(name)[1].lower() in IMG_EXT and os.path.splitext(os.path.splitext(name)[0])[1].lower() in IMG_EXT:
+            name = os.path.splitext(name)[0]  # 「名前.png.jpg」→「名前.png」
         ext = os.path.splitext(src)[1].lower()
-        convert = ext == ".webp"  # エンジン（cairo）は webp を読めないので PNG にする
+        # エンジン（cairo）は webp・jpg を読めないので PNG にする（Gemini の ZIP は「名前.png.jpg」の jpg で届くことがある）
+        convert = ext in (".webp", ".jpg", ".jpeg")
         if convert:
             ext = ".png"
         if os.path.splitext(name)[1].lower() != ext:
@@ -115,7 +118,7 @@ def cmd_apply(mp):
         dst = next_version(os.path.join(dest_dir, name))
         if convert:
             from PIL import Image
-            Image.open(src).convert("RGBA").save(dst)
+            Image.open(src).convert("RGB" if ext != ".webp" else "RGBA").save(dst)
         else:
             shutil.copy2(src, dst)
         log.append(f"#{m['no']} {m['original']} → {dst}")
