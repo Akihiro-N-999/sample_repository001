@@ -2,6 +2,8 @@
 保存名（参考）を入れる。ZIP（アーカイブ）にまとめる指示はユーザー本人が Gemini に出すので、依頼書には書かない。
 
     python3 video/lib/image_request.py <エピソードのフォルダ> <依頼の名前> <指示文の番号> [<番号> ...]
+        [--also <ほかの指示書.md>]   … シリーズ共通の人物の指示書。番号は「フォルダ名:番号」（例 akihiro:1-1）
+        [--note <番号>=<注意書き>]   … その指示文の前に出す注意（作り直しの理由など）
 
 例：
     python3 video/lib/image_request.py video/episodes/shovel G3_step1 1-1
@@ -39,14 +41,29 @@ def parse(path):
 
 
 def main():
-    if len(sys.argv) < 4:
+    args = sys.argv[1:]
+    also, notes, rest = [], {}, []
+    i = 0
+    while i < len(args):
+        if args[i] == "--also":
+            also.append(args[i + 1]); i += 2
+        elif args[i] == "--note":
+            k, v = args[i + 1].split("=", 1); notes[k] = v; i += 2
+        else:
+            rest.append(args[i]); i += 1
+    if len(rest) < 3:
         raise SystemExit(__doc__)
-    ep, name, wanted = sys.argv[1].rstrip("/"), sys.argv[2], sys.argv[3:]
+    ep, name, wanted = rest[0].rstrip("/"), rest[1], rest[2:]
     pdir = os.path.join(ep, "image_prompts")
     allitems = {}
     for f in sorted(os.listdir(pdir)):
         if f.endswith(".md") and not f.startswith("00_"):
             allitems.update(parse(os.path.join(pdir, f)))
+    for f in also:  # シリーズ共通の人物の指示書など。番号は「フォルダ名:番号」（例 akihiro:1-1）
+        prefix = os.path.basename(os.path.dirname(os.path.abspath(f)))
+        for k, v in parse(f).items():
+            v["file"] = os.path.relpath(f)
+            allitems[f"{prefix}:{k}"] = v
     missing = [w for w in wanted if w not in allitems]
     if missing:
         raise SystemExit(f"[NG] 指示書に見つからない番号: {missing}（見出し「### 番号. …」と、保存名・指示文の書き方を確かめる）")
@@ -68,6 +85,8 @@ def main():
             out += [f"### {no}. {it['title']}", ""]
             if it["attach"]:
                 out += [f"- 添付：{it['attach']}", ""]
+            if no in notes:
+                out += [f"- **{notes[no]}**", ""]
             if "基準画像" in it["title"]:
                 out += ["- **この1枚は2〜3案作って、いちばん良い1枚を選んでください。送るのは選んだ1枚だけです。**"
                         "（差分はこの1枚をもとに作るので、ここで顔と服を決めます）", ""]
