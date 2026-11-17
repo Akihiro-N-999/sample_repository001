@@ -952,17 +952,28 @@ def mouth_patch(base_path, open_path, feather=0.35):
     from PIL import Image
     base = np.asarray(Image.open(base_path).convert("RGB")).astype(np.int32)
     opn = key_green(open_path)
+    if opn.size != (base.shape[1], base.shape[0]):  # チャットに貼った画像は縮んで届くことがある
+        opn = opn.resize((base.shape[1], base.shape[0]), Image.LANCZOS)
     o = np.asarray(opn).astype(np.int32)
     h, w = base.shape[:2]
-    diff = np.abs(base - o[..., :3]).sum(2) > 150
+    # 口の位置は、縮めてぼかした画像の差で探す。拡大縮小や JPEG で輪郭線が 1〜2 画素ずれた差は
+    # 縮めると薄まって消え、塗りのある口（暗い赤の口の中）だけが残る。
+    f = max(1, w // 224)
+    sw, sh = w // f, h // f
+    # 基準画像も同じく緑を抜いてから比べる（抜いた画像と抜いていない画像を比べると、
+    # あごの横に見える背景の緑が「差」になり、口の位置が横にずれる）
+    bk = np.asarray(key_green(base_path).convert("RGB"))
+    bs = np.asarray(Image.fromarray(bk).resize((sw, sh), Image.BOX)).astype(np.int32)
+    os_ = np.asarray(Image.fromarray(o[..., :3].astype(np.uint8)).resize((sw, sh), Image.BOX)).astype(np.int32)
+    sdiff = np.abs(bs - os_).sum(2) > 90
     # 口は顔の下半分の中央にあるので、その範囲の強い差だけを見る
-    y0, y1, x0, x1 = int(h * 0.3), int(h * 0.75), int(w * 0.3), int(w * 0.7)
-    ys, xs = np.where(diff[y0:y1, x0:x1])
-    if len(ys) < 20:
+    y0, y1, x0, x1 = int(sh * 0.3), int(sh * 0.8), int(sw * 0.3), int(sw * 0.7)
+    ys, xs = np.where(sdiff[y0:y1, x0:x1])
+    if len(ys) < 4:
         raise ValueError(f"口の差が見つからない: {open_path}")
-    # 外れ値（眉の描き直しなど）を除くため、差の多い行の塊のうち最も下のものを口とみなす
+    # 外れ値（眉の描き直しや汗のしずくなど）を除くため、差の多い行の塊のうち最も下の大きいものを口とみなす
     rows = np.bincount(ys, minlength=y1 - y0)
-    thr = max(3, rows.max() * 0.15)
+    thr = max(1, rows.max() * 0.15)
     on = rows > thr
     blocks, start = [], None
     for i, v in enumerate(list(on) + [False]):
@@ -973,9 +984,10 @@ def mouth_patch(base_path, open_path, feather=0.35):
             start = None
     by0, by1 = max(blocks, key=lambda b: (b[1] - b[0]) * (b[0] + 1) ** 0.5)
     sel = (ys >= by0) & (ys < by1)
-    cx, cy = xs[sel].mean() + x0, (by0 + by1) / 2 + y0
-    rx = (np.percentile(xs[sel], 90) - np.percentile(xs[sel], 10)) / 2 * 1.4 + 12
-    ry = (by1 - by0) / 2 * 1.5 + 12
+    cx = (np.median(xs[sel]) + x0 + 0.5) * f
+    cy = ((by0 + by1) / 2 + y0) * f
+    rx = (np.percentile(xs[sel], 95) - np.percentile(xs[sel], 5) + 1) / 2 * f * 1.5 + 12
+    ry = (by1 - by0) / 2 * f * 1.6 + 12
     # 輪郭線の描き直しを拾って範囲が広がりすぎないよう、口の大きさの上限で抑える
     rx, ry = min(rx, w * 0.14), min(ry, h * 0.07)
     yy, xx = np.mgrid[0:h, 0:w]
@@ -992,6 +1004,8 @@ def eye_patch(base_path, blink_path, feather=0.4):
     from PIL import Image
     base = np.asarray(Image.open(base_path).convert("RGB")).astype(np.int32)
     blk = key_green(blink_path)
+    if blk.size != (base.shape[1], base.shape[0]):  # チャットに貼った画像は縮んで届くことがある
+        blk = blk.resize((base.shape[1], base.shape[0]), Image.LANCZOS)
     o = np.asarray(blk).astype(np.int32)
     h, w = base.shape[:2]
     diff = (np.abs(base - o[..., :3]).sum(2) > 150) & (o[..., 3] > 200)  # 背景の緑かぶり除去による差を除く
