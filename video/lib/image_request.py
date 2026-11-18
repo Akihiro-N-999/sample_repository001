@@ -96,10 +96,54 @@ def main():
         out += [f"- {it['save']} ： {it['title']}" for _, it in its]
         out += [""]
 
+    # 添付する画像を集めて ZIP にする（ユーザーが探さずに済むように。2026-11-18 のユーザーの希望）
+    # 名前が完全に一致する画像、なければ同じ名前の最新の版を、指示文に書いてある名前で入れる。
+    root = os.path.normpath(os.path.join(HERE, ".."))
+    pool = {}
+    for d in [os.path.join(root, "assets", "images"), os.path.join(root, "characters")]:
+        for r, _, fs in os.walk(d):
+            for fn in fs:
+                if fn.lower().endswith((".png", ".jpg")):
+                    pool.setdefault(fn, os.path.join(r, fn))
+    def find(nm):
+        if nm in pool:
+            return pool[nm]
+        stem = re.sub(r"_v\d+\.(png|jpg)$", "", nm)
+        cands = [(int(m.group(1)), path) for fn, path in pool.items()
+                 for m in [re.match(re.escape(stem) + r"_v(\d+)\.(?:png|jpg)$", fn)] if m]
+        return max(cands)[1] if cands else None
+    attach_names = []
+    for w in wanted:
+        for nm in re.findall(r"`([^`]+\.(?:png|jpg))`", allitems[w]["attach"]):
+            if nm not in attach_names:
+                attach_names.append(nm)
+    made = {allitems[w]["save"] for w in wanted}
+    have = {nm: find(nm) for nm in attach_names if nm not in made}
+    have = {k: v for k, v in have.items() if v}
+    missing_att = [nm for nm in attach_names if nm not in have]
+    out += ["---", "", "## 添付する画像", ""]
+    if have:
+        out += ["次の画像は、添付用の画像の ZIP にまとめてお送りします（名前は指示文のとおり）。", ""]
+        out += [f"- `{nm}`" for nm in have]
+        out += [""]
+    if missing_att:
+        out += ["次の画像は ZIP に入っていません。この依頼の中で作る画像か、まだ届いていない画像です。", ""]
+        out += [f"- `{nm}`" + ("（この依頼の中で作ります）" if nm in made else "") for nm in missing_att]
+        out += [""]
+
     rdir = os.path.join(pdir, "requests")
     os.makedirs(rdir, exist_ok=True)
     path = next_version(os.path.join(rdir, f"{name}.md"))
     open(path, "w", encoding="utf-8").write("\n".join(out))
+    if have:
+        import zipfile
+        zdir = os.path.join(root, "out", "requests")
+        os.makedirs(zdir, exist_ok=True)
+        zpath = next_version(os.path.join(zdir, f"{name}_添付.zip"))
+        with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+            for nm, src in have.items():
+                z.write(src, nm)
+        print(f"[OK] 添付用の画像 {len(have)}枚 → {zpath}")
     print(f"[OK] {len(wanted)}枚・{len(groups)}会話 → {path}（指示書の全体は {len(allitems)}枚）")
 
 
