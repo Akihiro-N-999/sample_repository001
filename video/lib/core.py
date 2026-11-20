@@ -1004,7 +1004,7 @@ def mouth_patch(base_path, open_path, feather=0.35):
     rx = (np.percentile(xs[sel], 95) - np.percentile(xs[sel], 5) + 1) / 2 * f * 1.5 + 12
     ry = (by1 - by0) / 2 * f * 1.6 + 12
     # 輪郭線の描き直しを拾って範囲が広がりすぎないよう、口の大きさの上限で抑える
-    rx, ry = min(rx, w * 0.14), min(ry, h * 0.07)
+    rx, ry = min(rx, w * 0.18), min(ry, h * 0.07)  # 横に大きく開いた笑い口が切れないよう 0.18（0.14 では口の端がぼけた）
     yy, xx = np.mgrid[0:h, 0:w]
     dist = np.sqrt(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2)
     m = np.clip((1 - dist) / feather, 0, 1)
