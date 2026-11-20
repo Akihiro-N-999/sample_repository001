@@ -223,11 +223,12 @@ class Timeline:
     def scene(self, name, at=None):
         self.scenes.append((self.t if at is None else at, name))
 
-    def bgm(self, path, at=None, until=None, vol=0.18, fade=1.5, duck=0.4):
+    def bgm(self, path, at=None, until=None, vol=0.18, fade=1.5, duck=0.4, fade_out=None, ramp=None):
         """BGMを at〜until 秒に流す（曲が短ければループ）。台詞の間は duck 倍に下げる。
-        until を省くと動画の終わりまで。"""
+        until を省くと動画の終わりまで。fade_out を渡すと終わりのフェードだけ別の長さにする。
+        ramp=[(秒, 音量), ...] を渡すと、音量をその点のあいだで直線的に変える（vol は使わない）。"""
         self.bgms.append(dict(path=path, t0=self.t if at is None else at, t1=until,
-                              vol=vol, fade=fade, duck=duck))
+                              vol=vol, fade=fade, duck=duck, fade_out=fade_out, ramp=ramp))
 
     # ---- 再生時の問い合わせ
     def prog(self, name, t, ease=ease_io):
@@ -307,9 +308,15 @@ class Timeline:
                 f = max(1, int(m["fade"] * SR))
                 g = np.ones(n, np.float32)
                 g[:min(f, n)] = np.linspace(0, 1, min(f, n))
-                g[-min(f, n):] = np.minimum(g[-min(f, n):], np.linspace(1, 0, min(f, n)))
+                fo = max(1, int(m["fade_out"] * SR)) if m.get("fade_out") is not None else f
+                g[-min(fo, n):] = np.minimum(g[-min(fo, n):], np.linspace(1, 0, min(fo, n)))
                 g *= 1 - (1 - m["duck"]) * speech[s:s + n]
-                out[s:s + n] += track * g * m["vol"]
+                if m.get("ramp"):
+                    rt, rv = zip(*m["ramp"])
+                    vv = np.interp(np.arange(n) / SR + m["t0"], rt, rv).astype(np.float32)
+                else:
+                    vv = m["vol"]
+                out[s:s + n] += track * g * vv
         peak = np.abs(out).max()
         if normalize and peak > 0.95:
             out *= 0.95 / peak
@@ -814,7 +821,7 @@ def portrait_image(ctx, x, y, r, path, focus=(0.5, 0.56), speaking=0.0, ring=Non
     ctx.stroke()
 
 
-def caption(ctx, tl, t, names, colors):
+def caption(ctx, tl, t, names, colors, by=880):
     ln = tl.caption(t)
     if not ln:
         return
@@ -822,7 +829,7 @@ def caption(ctx, tl, t, names, colors):
     name = names.get(key) or names.get(ln.who[0], "")
     col = colors.get(key) or colors.get(ln.who[0], INK)
     k = ease_out((t - ln.t0) / 0.15)
-    bx, by, bw, bh = 300, 880, 1460, 170
+    bx, bw, bh = 300, 1460, 170
     ctx.save()
     ctx.translate(0, (1 - k) * 20)
     rrect(ctx, bx, by, bw, bh, 26)
