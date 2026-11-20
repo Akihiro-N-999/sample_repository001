@@ -1,502 +1,395 @@
-"""note「スコップを渡された人たち」寸劇アニメ（試作版: 辞令 → 穴掘り → 碑 → 突き落とし）
+"""note「スコップを渡された人たち」寸劇アニメ（漫画動画方式。台本 script.md に従う）
+
+今回は見本段階：場面K0（タイトル）と場面K1（辞令、台詞 #5〜#13）だけを実装している。
+ほかの場面は、場面ごとの関数（scene_xx）を足して build() から呼ぶ。
+前の試作は versions/episode_prototype_v1.py。
 
 使い方（リポジトリ直下で）:
-    python3 video/episodes/shovel/episode.py            # MP4 を書き出す
-    python3 video/episodes/shovel/episode.py --stills   # 確認用の静止画だけ出す
+    python3 video/episodes/shovel/episode.py --stills   # 確認用の静止画と一覧画像
+    python3 video/episodes/shovel/episode.py --sample   # 見本（K0〜K1）の MP4
 """
 import math
 import os
-import random
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "lib"))
-from core import (H, W, INK, Timeline, Voicevox, caption, clamp, ease_back,  # noqa: E402
-                  ease_out, fill_stroke, hexc, lerp, person, render, rrect, star, text,
-                  vtext, wrap)
-import cairo  # noqa: E402
-
-OUT = os.path.join(HERE, "..", "..", "out")
-# 語り手の顔（本人の写真から生成AIで作ったイラストの顔部分）。リポジトリには入れていない。
-# ファイルがなければ、コードで描いた顔アイコンを使う。
-FACE = os.path.join(HERE, "..", "..", "assets", "images", "akihiro_face.png")
+LIB = os.path.join(HERE, "..", "..", "lib")
+sys.path.insert(0, LIB)
 import core  # noqa: E402
-core.NARRATOR_IMAGE = FACE
+from core import (H, W, INK, Tachie, Timeline, Voicevox, caption, clamp, ease_back,  # noqa: E402
+                  ease_io, ease_out, fill_stroke, hexc, latest, lerp, render, rrect, text)
+from voice_preview import load_lines, load_tuning, load_voices  # noqa: E402
+import cairo  # noqa: E402
+from PIL import Image, ImageFilter  # noqa: E402
 
-# ---------------------------------------------------------------- 配役（VOICEVOX 話者ID）
+ROOT = os.path.join(HERE, "..", "..")
+OUT = os.path.join(ROOT, "out")
+IMG = os.path.join(ROOT, "assets", "images", "shovel")
+BGM_SKIT = os.path.join(ROOT, "assets", "bgm", "bgm_skit_light.mp3")
+
+# ---------------------------------------------------------------- 配役（characters.md の「声の割り当て」）
 CAST = {
-    "narr": {"id": 11, "speed": 1.08},   # 玄野武宏 ノーマル
-    "boss": {"id": 13, "speed": 1.05},   # 青山龍星 ノーマル
-    "a": {"id": 12, "speed": 1.1},       # 白上虎太郎 ふつう
-    "b": {"id": 8, "speed": 1.1},        # 春日部つむぎ ノーマル
-    "c": {"id": 10, "speed": 1.05},      # 雨晴はう ノーマル
+    "narr": {"id": 11, "speed": 1.08},    # アキヒロ：玄野武宏
+    "boss": {"id": 13, "speed": 1.05},    # 偉い人：青山龍星（熱血=81, 焦り=81, 不機嫌=82, 喜び=83, 困り=85）
+    "a": {"id": 67, "speed": 1.1},        # 行員A：栗田まろん
+    "b": {"id": 8, "speed": 1.1},         # 行員B：春日部つむぎ
+    "c": {"id": 52, "speed": 1.0},        # 行員C：雀松朱司
+    "senpai": {"id": 21, "speed": 1.12},  # 窓口の先輩：剣崎雌雄
 }
 NAMES = {"narr": "アキヒロ", "boss": "偉い人", "a": "行員A", "b": "行員B", "c": "行員C",
-         "a+b+c": "行員たち"}
+         "senpai": "窓口の先輩", "a+b+c": "行員たち"}
 COLORS = {"narr": hexc("#3D5A80"), "boss": hexc("#24324F"), "a": hexc("#3E78C8"),
-          "b": hexc("#4E9A55"), "c": hexc("#C0563F"), "a+b+c": hexc("#8A6A3A")}
-CREDIT = ["音声：VOICEVOX:玄野武宏　VOICEVOX:青山龍星　VOICEVOX:白上虎太郎",
-          "VOICEVOX:春日部つむぎ　VOICEVOX:雨晴はう",
-          "語り手のイラスト：生成AI（Gemini）で作成"]
+          "b": hexc("#4E9A55"), "c": hexc("#C0563F"), "senpai": hexc("#8A6A3A"),
+          "a+b+c": hexc("#7A5A8A")}
+CREDIT = ["VOICEVOX:玄野武宏", "VOICEVOX:青山龍星", "VOICEVOX:栗田まろん",
+          "VOICEVOX:春日部つむぎ", "VOICEVOX:雀松朱司", "VOICEVOX:剣崎雌雄"]
 
-STAFF = [("a", "#4C83D1", "#7A4A2A"), ("b", "#5AA35F", "#4A3222"), ("c", "#C9654B", "#8B5A2B")]
-DOCS = ["融資", "窓口", "稟議", "苦情", "為替", "相続", "年金", "口座", "審査", "規程"]
-
-
-# ---------------------------------------------------------------- 台本
-def build(vv):
-    tl = Timeline(vv, CAST)
-
-    # タイトル
-    tl.scene("title")
-    tl.mark("title_in", dur=0.6)
-    tl.sfx("chime", at=0.2)
-    tl.wait(3.2)
-
-    # ① 辞令（オフィス）
-    tl.scene("office")
-    tl.wait(0.5)
-    tl.say("narr", "ある大手銀行が、営業や事務の行員を、\n3か月でAIエンジニアにするそうです。")
-    tl.mark("boss_enter", dur=1.0)
-    tl.sfx("whoosh")
-    tl.wait(1.1)
-    tl.mark("banner", dur=0.5)
-    tl.sfx("pop")
-    tl.say("boss", "今日から君たちは、AIエンジニアだ！", ids=[81])
-    tl.mark("sweat_a")
-    tl.say("a", "え、私たち、営業と事務ですけど……", ids=[33])
-    tl.say("b", "ふつう1年半かかるって、聞きましたけど……", voice="ふつう、いちねんはんかかるって、聞きましたけど")
-    a, b = tl.say("boss", "心配いらん！ コードはAIが書く。\nほら、これを持ちたまえ！", ids=[81], gap=0.2)
-    tl.mark("point", at=a + 1.0, dur=0.01)
-    for i in range(3):
-        tl.mark(f"shovel{i}", at=b + 0.05 + i * 0.18, dur=0.35)
-        tl.sfx("pop", at=b + 0.05 + i * 0.18)
-    tl.wait(0.7)
-    tl.say("c", "……スコップ、ですね。", gap=0.4)
-    tl.say("narr", "まず、スコップを持たせる。", gap=0.2)
-    tl.mark("zoom_shovel", dur=0.8)
-    tl.say("narr", "スコップは、AIです。", gap=0.8)
-
-    # ② 穴を掘る（野原）
-    tl.scene("field")
-    tl.wait(0.5)
-    a, _ = tl.say("narr", "次に、穴を掘らせる。", gap=0.2)
-    tl.mark("dig", at=a + 0.6, dur=9.0)
-    tl.mark("cheer")
-    tl.say(["a", "b", "c"], "業務知識、ぜんぶ掘り出しまーす！", voice="ぎょうむちしき、ぜんぶ掘り出しまーす！",
-           ids=[32, 8, 10])
-    tl.say("boss", "いいぞいいぞ、どんどん掘れ！", ids=[81], gap=0.5)
-    a, _ = tl.say("narr", "掘った穴に、碑を建てさせる。", voice="掘った穴に、ひを建てさせる。", gap=0.2)
-    tl.mark("mon", at=a + 0.3, dur=5.0)
-    _, b = tl.say("narr", "碑は、業務知識がぎっしり詰まった、\nAIエージェントです。",
-                  voice="ひは、ぎょうむちしきがぎっしり詰まった、エーアイエージェントです。", gap=0.4)
-    tl.marks["dig"] = (tl.marks["dig"][0], b - tl.marks["dig"][0] - 0.3)
-    tl.marks["mon"] = (tl.marks["mon"][0], b - tl.marks["mon"][0] + 0.2)
-
-    # ③ 完成 → 突き落とし
-    tl.mark("climb", dur=0.9)
-    tl.wait(0.9)
-    tl.mark("done", dur=0.6)
-    tl.sfx("chime")
-    tl.say("a", "できました！", ids=[32], gap=0.5)
-    tl.mark("boss_step", dur=0.8)
-    tl.say("boss", "おつかれさま。", gap=0.6)
-    tl.mark("evil", dur=0.6)
-    tl.sfx("shock", vol=0.8)
-    a, b = tl.say("boss", "おまえらは、もう用済みだ！", ids=[82], gap=0.1)
-    tl.mark("push", dur=0.3)
-    tl.sfx("whoosh")
-    tl.mark("fall", at=tl.t + 0.12, dur=1.1)
-    tl.say(["a", "b", "c"], "えっ", ids=[33, 8, 10], gap=0.0)
-    tl.sfx("thud", at=tl.marks["fall"][0] + 1.05)
-    tl.t = tl.marks["fall"][0] + 1.9
-    tl.mark("evil_off", dur=0.8)
-    tl.say("narr", "そして最後に、作った人を、\nその穴に突き落とす。", gap=0.9)
-    tl.mark("calm", dur=1.5)
-    tl.say("narr", "……おしまい。", voice="おしまい。", gap=1.2)
-
-    # エンドカード
-    tl.scene("end")
-    tl.mark("end_in", dur=0.6)
-    tl.wait(5.0)
-    return tl
+# 台本・声の表は md から読む（voice_preview.py と同じ読み方）
+VOICES = load_voices(os.path.join(HERE, "characters.md"))
+SCRIPT = {ln["no"]: ln for ln in load_lines(os.path.join(HERE, "script.md"))}
+TUNING = load_tuning(os.path.join(HERE, "sound.md"))
 
 
-# ---------------------------------------------------------------- 背景
-def bg_office(ctx, tl, t):
-    ctx.set_source_rgba(*hexc("#F3EBDD"))
-    ctx.paint()
-    ctx.rectangle(0, 640, W, 160)
-    ctx.set_source_rgba(*hexc("#E4D6BE"))
-    ctx.fill()
-    ctx.rectangle(0, 800, W, H - 800)
-    ctx.set_source_rgba(*hexc("#BFA582"))
-    ctx.fill()
-    ctx.set_source_rgba(*INK)
-    ctx.set_line_width(5)
-    ctx.move_to(0, 800)
-    ctx.line_to(W, 800)
-    ctx.stroke()
-    # 窓
-    rrect(ctx, 110, 150, 420, 300, 10)
-    fill_stroke(ctx, hexc("#BFE3F5"))
-    ctx.set_line_width(8)
-    ctx.move_to(320, 150)
-    ctx.line_to(320, 450)
-    ctx.move_to(110, 300)
-    ctx.line_to(530, 300)
-    ctx.stroke()
-    # 観葉植物
-    ctx.set_source_rgba(*hexc("#5AA35F"))
-    for a in range(-3, 4):
-        ctx.save()
-        ctx.translate(1830, 690)
-        ctx.rotate(a * 0.28)
-        ctx.scale(0.35, 1)
-        ctx.arc(0, -70, 70, 0, 2 * math.pi)
-        ctx.restore()
-        fill_stroke(ctx, hexc("#5AA35F"), lw=4)
-    rrect(ctx, 1785, 690, 90, 110, 12)
-    fill_stroke(ctx, hexc("#B5653F"))
-    # 横断幕
-    k = tl.prog("banner", t, ease_back)
-    if k > 0:
-        ctx.save()
-        ctx.translate(1110, 175)
-        ctx.scale(k, k)
-        rrect(ctx, -380, -95, 760, 190, 18)
-        fill_stroke(ctx, (1, 1, 1, 1), hexc("#D33A2C"), 10)
-        text(ctx, "AIエンジニア育成プログラム", 0, -32, 56, hexc("#D33A2C"))
-        text(ctx, "未経験から たった3か月！", 0, 40, 46, INK)
-        ctx.restore()
+def say_no(tl, no, **kw):
+    """台本の #no を tl.say() 1回で合成する。字幕は「台詞」、合成は「読み」（あれば）、
+    声ID・話速・高さ・抑揚・間は sound.md の「台詞の調整」、調子別IDは characters.md。"""
+    ln, tu = SCRIPT[str(no)], TUNING.get(str(no), {})
+    whos = ln["who"].replace(" ", "").split("+")
+    ids = []
+    for w in whos:
+        v = VOICES[w]
+        ids.append(tu.get("id") or next((i for k, i in v["styles"].items() if k in ln["tone"]), v["id"]))
+    args = dict(voice=ln["yomi"] or None, ids=ids, speed=tu.get("speed"), pitch=tu.get("pitch"),
+                intonation=tu.get("intonation"), pause=tu.get("pause") or 1.0,
+                pre=tu.get("pre") or 0.0, gap=tu.get("gap") if tu.get("gap") is not None else 0.6)
+    args.update(kw)
+    return tl.say(whos if len(whos) > 1 else whos[0], ln["text"], **args)
 
 
-FG = 690          # 野原の地面の高さ
-HX = 1330         # 穴の中心
-MONX = 300        # 碑の位置
+# ---------------------------------------------------------------- 画像
+def _img(name):
+    return os.path.join(IMG, name + ".png")
 
 
-def hole_geom(tl, t):
-    d = tl.prog("dig", t, lambda x: clamp(x))
-    depth = 30 + 170 * d
-    return depth, 250 * min(1, 0.4 + d), 190 * min(1, 0.4 + d)
+def load_tachie():
+    return {
+        "boss": Tachie(_img("shovel_boss_base"), _img("shovel_boss_mouth_open"), half=_img("shovel_boss_mouth_half")),
+        "a": Tachie(_img("shovel_a_base"), _img("shovel_a_mouth_open"), half=_img("shovel_a_mouth_half")),
+        "b": Tachie(_img("shovel_b_base"), _img("shovel_b_mouth_open"), half=_img("shovel_b_mouth_half")),
+        "c": Tachie(_img("shovel_c_base"), _img("shovel_c_mouth_open"), half=_img("shovel_c_mouth_half")),
+    }
 
 
-def bg_field(ctx, tl, t):
-    g = cairo.LinearGradient(0, 0, 0, FG)
-    g.add_color_stop_rgb(0, *hexc("#9FD3F0")[:3])
-    g.add_color_stop_rgb(1, *hexc("#FFF4DC")[:3])
-    ctx.set_source(g)
-    ctx.paint()
-    # 雲
-    for i, (cx, cy, s) in enumerate([(300, 160, 1.0), (980, 110, 0.8), (1600, 200, 1.2)]):
-        x = (cx + t * 12 * (1 + i * 0.3)) % (W + 400) - 200
-        ctx.set_source_rgba(1, 1, 1, 0.9)
-        for dx, r in ((-50, 40), (0, 58), (55, 44)):
-            ctx.arc(x + dx * s, cy, r * s, 0, 2 * math.pi)
-            ctx.fill()
-    # 遠くの丘
-    ctx.new_path()
-    ctx.move_to(0, FG)
-    for x in range(0, W + 40, 40):
-        ctx.line_to(x, FG - 70 - 40 * math.sin(x / 260) - 25 * math.sin(x / 97))
-    ctx.line_to(W, FG)
-    ctx.close_path()
-    ctx.set_source_rgba(*hexc("#B9D79A"))
-    ctx.fill()
-    # 地面
-    ctx.rectangle(0, FG, W, H - FG)
-    ctx.set_source_rgba(*hexc("#CFAE7E"))
-    ctx.fill()
-    ctx.set_source_rgba(*hexc("#BE9B6B"))
-    for y in (FG + 60, FG + 150, FG + 260):
-        ctx.rectangle(0, y, W, 8)
-        ctx.fill()
-    ctx.set_source_rgba(*INK)
-    ctx.set_line_width(5)
-    ctx.move_to(0, FG)
-    ctx.line_to(W, FG)
-    ctx.stroke()
-    # 掘った土の山
-    d = tl.prog("dig", t, lambda x: clamp(x))
-    if d > 0:
-        ctx.save()
-        ctx.translate(HX + 380, FG)
-        ctx.scale(1, d)
-        ctx.arc(0, 0, 150, math.pi, 2 * math.pi)
-        ctx.restore()
-        fill_stroke(ctx, hexc("#A57B4C"))
-    # 穴
-    depth, tw, bw = hole_geom(tl, t)
-    hole_path(ctx, depth, tw, bw)
-    fill_stroke(ctx, hexc("#5B3F28"))
+def cover_bg(path, blur):
+    """背景を 1920×1080 に合わせて拡大・切り出し、blur（半径）でぼかして cairo の面にする。"""
+    path = latest(path)
+    key = f"{os.path.splitext(os.path.basename(path))[0]}_{int(os.path.getmtime(path))}_cover_b{blur}"
+    cache = os.path.join(core.CACHE_DIR, key + ".png")
+    if not os.path.exists(cache):
+        im = Image.open(path).convert("RGB")
+        s = max(W / im.width, H / im.height)
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        x0, y0 = (im.width - W) // 2, (im.height - H) // 2
+        im = im.crop((x0, y0, x0 + W, y0 + H))
+        if blur:
+            im = im.filter(ImageFilter.GaussianBlur(blur))
+        os.makedirs(core.CACHE_DIR, exist_ok=True)
+        im.save(cache)
+    return core.load_image(cache)
 
 
-def hole_path(ctx, depth, tw, bw, new=True):
-    if new:
-        ctx.new_path()
-    ctx.move_to(HX - tw, FG)
-    ctx.line_to(HX + tw, FG)
-    ctx.line_to(HX + bw, FG + depth)
-    ctx.line_to(HX - bw, FG + depth)
-    ctx.close_path()
+# ---------------------------------------------------------------- 描画部品
+def note_fiction(ctx, small=True, alpha=1.0):
+    """「※この物語はフィクションです」。K0 は下に中央、K1 以降は右下にごく小さく。"""
+    s = "※この物語はフィクションです"
+    if small:
+        text(ctx, s, W - 24, H - 18, 21, (0.25, 0.25, 0.28, 0.9 * alpha), align="right", bold=False,
+             outline=(1, 1, 1, 0.8 * alpha), ow=5)
+    else:
+        text(ctx, s, W / 2, H - 56, 32, (0.2, 0.2, 0.24, alpha), bold=False, outline=(1, 1, 1, 0.85 * alpha), ow=7)
 
 
-def monument(ctx, tl, t):
-    k = tl.prog("mon", t)
-    if k <= 0:
-        return
-    done = tl.prog("done", t, ease_back)
-    if done > 0:
-        g = cairo.RadialGradient(MONX, FG - 200, 20, MONX, FG - 200, 330)
-        g.add_color_stop_rgba(0, 1, 0.92, 0.5, 0.85 * min(done, 1))
-        g.add_color_stop_rgba(1, 1, 0.92, 0.5, 0)
-        ctx.set_source(g)
-        ctx.arc(MONX, FG - 200, 330, 0, 2 * math.pi)
-        ctx.fill()
+def paper(ctx, x, y, rot, s=1.0):
+    """無地の辞令（白い紙。文字は描かない）。"""
     ctx.save()
-    ctx.rectangle(0, 0, W, FG)
-    ctx.clip()
-    ctx.translate(0, (1 - k) * 420)
-    w, h = 210, 390
-    ctx.new_path()
-    ctx.move_to(MONX - w / 2, FG)
-    ctx.line_to(MONX - w / 2, FG - h + 50)
-    ctx.curve_to(MONX - w / 2, FG - h - 10, MONX + w / 2, FG - h - 10, MONX + w / 2, FG - h + 50)
-    ctx.line_to(MONX + w / 2, FG)
-    ctx.close_path()
-    fill_stroke(ctx, hexc("#8E979F"), lw=6)
-    rrect(ctx, MONX - w / 2 - 25, FG - 30, w + 50, 30, 4)
-    fill_stroke(ctx, hexc("#737C84"), lw=5)
-    vtext(ctx, "AIエージェント", MONX, FG - h + 52, 40, hexc("#2E3338"))
+    ctx.translate(x, y)
+    ctx.rotate(rot)
+    ctx.scale(s, s)
+    ctx.set_line_join(cairo.LINE_JOIN_ROUND)
+    rrect(ctx, -105, -140, 210, 280, 6)
+    fill_stroke(ctx, (1, 1, 1, 1), INK, 6)
     ctx.restore()
-    if done > 0:
-        for i in range(6):
-            a = t * 1.5 + i * math.pi / 3
-            star(ctx, MONX + 170 * math.cos(a), FG - 220 + 190 * math.sin(a), 16 * done, t * 3)
-            ctx.set_source_rgba(*hexc("#F5C542"))
-            ctx.fill()
-        ctx.save()
-        ctx.translate(MONX, FG - 470)
-        ctx.scale(done, done)
-        text(ctx, "完成！", 0, 0, 72, hexc("#E39B12"), outline=(1, 1, 1, 1), ow=14)
-        ctx.restore()
 
 
-def flying_docs(ctx, tl, t):
-    if "dig" not in tl.marks:
-        return
-    t_start = tl.marks["dig"][0] + 0.8
-    t_end = tl.marks["mon"][0] + tl.marks["mon"][1] - 1.2
-    rnd = random.Random(7)
-    i = 0
-    ts = t_start
-    while ts < t_end:
-        r1, r2, r3 = rnd.random(), rnd.random(), rnd.random()
-        u = (t - ts) / 1.25
-        if 0 <= u <= 1:
-            depth, _, _ = hole_geom(tl, ts)
-            x0, y0 = HX + (r1 - 0.5) * 220, FG + depth * 0.4
-            x1, y1 = MONX + (r2 - 0.5) * 80, FG - 80 - r3 * 120
-            x = lerp(x0, x1, u)
-            y = lerp(y0, y1, u) - math.sin(math.pi * u) * (300 + r3 * 120)
-            al = clamp((1 - u) / 0.2)
-            ctx.save()
-            ctx.translate(x, y)
-            ctx.rotate(u * 6 * (r1 - 0.5))
-            ctx.push_group()
-            rrect(ctx, -52, -32, 104, 64, 6)
-            fill_stroke(ctx, (1, 1, 1, 1), lw=4)
-            text(ctx, DOCS[i % len(DOCS)], 0, 0, 30, INK)
-            ctx.pop_group_to_source()
-            ctx.paint_with_alpha(al)
-            ctx.restore()
-        ts += 0.32
-        i += 1
+def hand_arm(ctx, x0, y0, x1, y1, sleeve):
+    """肩側 (x0,y0) から手 (x1,y1) までの腕と手（スーツの袖と肌）。"""
+    ctx.set_line_cap(cairo.LINE_CAP_ROUND)
+    ctx.set_line_width(64)
+    ctx.set_source_rgba(*INK)
+    ctx.move_to(x0, y0)
+    ctx.line_to(x1, y1)
+    ctx.stroke()
+    ctx.set_line_width(50)
+    ctx.set_source_rgba(*sleeve)
+    ctx.move_to(x0, y0)
+    ctx.line_to(x1, y1)
+    ctx.stroke()
+    ctx.arc(x1, y1, 30, 0, 2 * math.pi)
+    fill_stroke(ctx, core.SKIN, INK, 5)
 
 
-# ---------------------------------------------------------------- 場面ごとの描画
-def bob(tl, who, t):
-    return 7 * abs(math.sin(t * 11)) if tl.speaking(who, t) else 0
+# ---------------------------------------------------------------- 画面の状態（キーフレーム）
+# 各キーフレーム：(開始時刻, 所要秒, 状態)。状態の人物は (x, 高さ, 不透明度, 薄め)。
+# blur は 0=ぼかしなし、1=ふつうのぼかし（会話ショットの背景）、2=強いぼかし（K0）。zoom はカメラの寄り。
+GROUND_Y = H  # 立ち絵（胸から上）の下端は画面の下端にそろえる
+X_BOSS, X_A, X_B, X_C = 360, 900, 1280, 1660
+H_BOSS, H_STAFF = 770, 630
 
 
-def draw_office(ctx, tl, t):
-    bg_office(ctx, tl, t)
-    ent = tl.prog("boss_enter", t, ease_out)
-    bx = lerp(-260, 600, ent)
-    walk = 10 * abs(math.sin(t * 14)) if 0 < ent < 1 else 0
-    arms = "point" if tl.since("point", t) > 0 else "down"
-    person(ctx, bx, 800, 1.12, kind="boss", body="#24324F", mouth=tl.mouth("boss", t),
-           eyes="smug", arms=arms, bob=walk + bob(tl, "boss", t))
-    for i, (w, body, hair) in enumerate(STAFF):
-        sv = tl.prog(f"shovel{i}", t, ease_back)
-        sweat = (w == "a" and tl.since("sweat_a", t) > 0) or (sv > 0 and w != "a")
-        person(ctx, 1150 + i * 250, 800, 1.0, body=body, hair=hair, mouth=tl.mouth(w, t),
-               eyes="wide" if tl.since("sweat_a", t) > 0 and sv == 0 and w == "a" else "normal",
-               sweat=sweat, shovel_s=sv, bob=bob(tl, w, t))
-
-
-def staff_state(tl, t, i):
-    """野原での行員iの位置・姿勢。"""
-    depth, _, _ = hole_geom(tl, t)
-    xh, yh = HX - 130 + i * 130, FG + depth * 0.85
-    xl, yl = 760 + i * 125, FG
-    c = tl.prog("climb", t)
-    x = lerp(xh, xl, c)
-    y = lerp(yh, yl, c) - math.sin(math.pi * c) * 150
-    st = dict(x=x, y=y, rot=0.0, alpha=1.0, arms="dig", eyes="normal")
-    if tl.since("dig", t) < 0 or c > 0:
-        st["arms"] = "down"
-    if tl.since("cheer", t) > 0 and c == 0:
-        st["eyes"] = "happy"
-    if tl.since("done", t) > 0:
-        st["arms"], st["eyes"] = "up", "happy"
-    f = tl.prog("fall", t, lambda u: clamp(u))
-    if tl.since("push", t) > 0:
-        st["eyes"], st["arms"] = "wide", "flail"
-    if f > 0:
-        tx = HX - 110 + i * 110
-        st["x"] = lerp(xl, tx, ease_out(f))
-        st["y"] = FG - math.sin(math.pi * min(f * 1.6, 1)) * 90 + (f ** 2) * (depth + 260)
-        st["rot"] = f * (1.6 + 0.3 * i)
-        st["alpha"] = clamp((1 - f) / 0.35)
+def layout(kind, who=None):
+    """配置の型。scene=場面ショット、conv=会話ショット（who が話者）、talk_c=C を右に大きく、
+    boss_push=偉い人を少し前へ。"""
+    st = {"boss": [X_BOSS, H_BOSS, 1.0, 0.0], "a": [X_A, H_STAFF, 1.0, 0.0],
+          "b": [X_B, H_STAFF, 1.0, 0.0], "c": [X_C, H_STAFF, 1.0, 0.0]}
+    if kind == "scene":
+        return st
+    for k, v in st.items():
+        v[2], v[3] = 0.62, 0.12
+    if kind == "talk_c":
+        st["boss"][0], st["a"][0], st["b"][0] = 300, 760, 1060
+        st["c"] = [1440, 920, 1.0, 0.0]
+        return st
+    if kind == "boss_push":
+        st["boss"] = [470, 880, 1.0, 0.0]
+        return st
+    st[who][2], st[who][3] = 1.0, 0.0
+    st[who][1] = st[who][1] * 1.1
     return st
 
 
-def draw_field(ctx, tl, t):
-    bg_field(ctx, tl, t)
-    monument(ctx, tl, t)
-    # 偉い人
-    step = tl.prog("boss_step", t)
-    push = tl.prog("push", t, ease_out)
-    bx = lerp(lerp(560, 600, step), 660, push)
-    arms = "push" if tl.since("push", t) > 0 else ("cross" if tl.since("dig", t) > 0 and step == 0 else "down")
-    evil = tl.since("evil", t) > 0
-    person(ctx, bx, FG, 1.1, kind="boss", body="#24324F", mouth=tl.mouth("boss", t),
-           eyes="evil" if evil else "smug", arms=arms, bob=bob(tl, "boss", t),
-           sweat=False)
-    # 行員（穴の外と穴の中だけ見えるようにクリップ）
-    depth, tw, bw = hole_geom(tl, t)
-    ctx.save()
-    ctx.rectangle(0, 0, W, FG)
-    hole_path(ctx, depth, tw, bw, new=False)
-    ctx.clip()
-    for i, (w, body, hair) in enumerate(STAFF):
-        st = staff_state(tl, t, i)
-        person(ctx, st["x"], st["y"], 0.92, body=body, hair=hair, mouth=tl.mouth(w, t),
-               eyes=st["eyes"], arms=st["arms"], shovel_s=1.0,
-               dig=(t * 1.4 + i * 0.33) % 1, rot=st["rot"], alpha=st["alpha"],
-               bob=bob(tl, w, t))
-    ctx.restore()
-    flying_docs(ctx, tl, t)
-    # 「えっ」
-    k = tl.prog("push", t, ease_back)
-    gone = clamp(1 - (tl.since("fall", t) - 0.9) / 0.4)
-    if k > 0 and gone > 0:
-        ctx.save()
-        ctx.translate(1080, 330)
-        ctx.rotate(-0.12)
-        ctx.scale(k, k)
-        ctx.push_group()
-        text(ctx, "えっ", 0, 0, 110, hexc("#D33A2C"), outline=(1, 1, 1, 1), ow=16)
-        ctx.pop_group_to_source()
-        ctx.paint_with_alpha(gone)
-        ctx.restore()
+class Stage:
+    def __init__(self):
+        self.kf = []
+
+    def add(self, t, dur, chars, blur, zoom, pivot=(X_BOSS, 700)):
+        self.kf.append(dict(t=t, dur=dur, chars=chars, blur=blur, zoom=zoom, pivot=pivot))
+
+    def at(self, t):
+        cur = [k for k in self.kf if k["t"] <= t]
+        i = len(cur) - 1
+        k = cur[-1]
+        p = self.kf[i - 1] if i > 0 else k
+        u = ease_io((t - k["t"]) / k["dur"]) if k["dur"] > 0 else 1.0
+        chars = {n: [lerp(p["chars"][n][j], k["chars"][n][j], u) for j in range(4)] for n in k["chars"]}
+        return dict(chars=chars, blur=lerp(p["blur"], k["blur"], u), zoom=lerp(p["zoom"], k["zoom"], u),
+                    pivot=k["pivot"])
 
 
-def draw_title(ctx, tl, t):
-    ctx.set_source_rgba(*hexc("#1F2A44"))
-    ctx.paint()
-    k = tl.prog("title_in", t, ease_back)
-    from core import shovel
-    shovel(ctx, W / 2, 170, 0.25 * math.sin(t * 2.5), 1.6 * k)
-    ctx.save()
-    ctx.translate(W / 2, 560)
-    ctx.scale(k, k)
-    text(ctx, "スコップを渡された人たち", 0, 0, 110, (1, 1, 1, 1))
-    text(ctx, "―非エンジニアを3か月でAIエンジニアに―", 0, 120, 46, hexc("#F5C542"))
-    ctx.restore()
-    rrect(ctx, W / 2 - 190, 820, 380, 70, 35)
-    fill_stroke(ctx, hexc("#F5C542", k), (1, 1, 1, k), 0.1)
-    text(ctx, "寸劇アニメ（試作版）", W / 2, 855, 36, hexc("#1F2A44", k))
-    narrator_badge(ctx, 1640, 880, k)
+# ---------------------------------------------------------------- 台本（場面ごと）
+def scene_k0(tl, stage, ev):
+    """場面K0：タイトル（R1 を強くぼかした上にタイトルだけ。台詞なし、5秒）。"""
+    t0 = tl.t
+    tl.scene("k0")
+    stage.add(t0, 0.01, layout("scene"), 2.0, 1.0)
+    ev["k0"] = (t0, t0 + 5.0)
+    ev["title_at"] = t0 + 0.4
+    tl.sfx("pop", at=ev["title_at"], vol=0.5)
+    tl.wait(5.0)
 
 
-def draw_end(ctx, tl, t):
-    ctx.set_source_rgba(*hexc("#1F2A44"))
-    ctx.paint()
-    k = tl.prog("end_in", t, ease_out)
-    text(ctx, "この続きは、noteの本編で。", W / 2, 400, 80, (1, 1, 1, k))
-    text(ctx, "「スコップを渡された人たち」", W / 2, 530, 56, hexc("#F5C542", k))
-    narrator_badge(ctx, W / 2, 720, k)
-    for i, s in enumerate(CREDIT):
-        text(ctx, s, W / 2, 890 + i * 46, 30, (0.85, 0.87, 0.92, k), bold=False)
+def scene_k1(tl, stage, ev):
+    """場面K1：辞令（#5〜#13）。"""
+    t0 = tl.t
+    tl.scene("k1")
+    # #5 場面ショット：看板の文字を1.5秒、そのあと台詞（偉い人へゆっくり寄る）
+    stage.add(t0, 0.7, layout("scene"), 0.0, 1.0)
+    ev["k1"] = t0
+    ev["sign"] = (t0 + 0.1, t0 + 1.6)
+    tl.wait(1.5)
+    a, b = say_no(tl, 5)
+    ev["l5"] = (a, b)
+    stage.add(a, b - a, layout("scene"), 0.0, 1.1)
+    ev["paper"] = (a - 0.2, a + 1.0)
+    for no, who in ((6, "a"), (7, "b")):
+        kt = tl.t
+        stage.add(kt, 0.3, layout("conv", who), 1.0, 1.0)
+        say_no(tl, no)
+    # #8 偉い人：立ち絵を1回小さく跳ねさせる
+    kt = tl.t
+    stage.add(kt, 0.3, layout("conv", "boss"), 1.0, 1.0)
+    a, b = say_no(tl, 8)
+    ev["hop"] = a
+    # #9 行員Cを右に大きく（台詞の前に0.3秒の間）
+    kt = tl.t
+    stage.add(kt, 0.3, layout("talk_c"), 1.0, 1.0)
+    say_no(tl, 9)
+    # #10〜#12 K1 の並びに戻す
+    for no, who in ((10, "boss"), (11, "a"), (12, "boss")):
+        kt = tl.t
+        stage.add(kt, 0.3, layout("conv", who), 1.0, 1.0)
+        say_no(tl, no)
+    # #13 偉い人が少し前へ寄って3人を指さす。言い終わりで pop
+    kt = tl.t
+    stage.add(kt, 0.3, layout("conv", "boss"), 1.0, 1.0)
+    a, b = say_no(tl, 13)
+    stage.add(a, 0.5, layout("boss_push"), 1.0, 1.0)
+    tl.sfx("pop", at=b, vol=0.5)
+    ev["end"] = b
 
 
-def narrator_badge(ctx, x, y, k):
-    """「語り：アキヒロ」の顔つき表示（顔画像がなければ描いた顔）。"""
-    if k <= 0.01:
-        return
-    from core import portrait_narrator, portrait_image
-    ctx.push_group()
-    if os.path.exists(core.latest(FACE)):
-        portrait_image(ctx, x - 80, y, 70, core.latest(FACE))
+def build(vv, upto="k1"):
+    tl = Timeline(vv, CAST)
+    stage, ev = Stage(), {}
+    # BGM：寸劇の軽い曲。見本は K0 から始まるので、K0 の頭から 1.5 秒のフェードインで 0.15
+    bgm_path = latest(BGM_SKIT)
+    scene_k0(tl, stage, ev)
+    scene_k1(tl, stage, ev)
+    total = ev["end"] + 1.0
+    if os.path.exists(bgm_path):
+        tl.bgm(bgm_path, at=0.0, until=total, vol=0.15, fade=1.5)
     else:
-        portrait_narrator(ctx, x - 80, y, 70, 0.0)
-    text(ctx, "語り", x + 10, y - 22, 26, (0.85, 0.87, 0.92, 1), align="left", bold=False)
-    text(ctx, "アキヒロ", x + 10, y + 18, 40, (1, 1, 1, 1), align="left")
-    ctx.pop_group_to_source()
-    ctx.paint_with_alpha(k)
+        print("注意: BGM のファイルがない（BGM なしで進める）:", bgm_path)
+    tl.wait(total - tl.t)
+    tl.stage, tl.ev, tl.total = stage, ev, total  # audio_check.py は build() の戻り値を Timeline として読む
+    return tl
 
 
-def make_draw(tl):
-    def draw(ctx, t):
-        sc = tl.scene_at(t)
+# ---------------------------------------------------------------- 描画
+def make_draw(tl, stage, ev, tachie):
+    bg = {b: cover_bg(os.path.join(IMG, "shovel_bg_branch_office.png"), b) for b in (0, 14, 40)}
+
+    def draw_bg(ctx, st):
+        ctx.set_source_surface(bg[0], 0, 0)
+        ctx.paint()
+        b = st["blur"]
+        if b > 0:
+            ctx.set_source_surface(bg[14], 0, 0)
+            ctx.paint_with_alpha(clamp(b))
+        if b > 1:
+            ctx.set_source_surface(bg[40], 0, 0)
+            ctx.paint_with_alpha(clamp(b - 1))
+
+    def sign(ctx, t):
+        a, b = ev["sign"]
+        al = clamp((t - a) / 0.2) * clamp((b - t) / 0.2)
+        if al <= 0:
+            return
+        # 壁の円形マークの右横の余白（背景を 1920×1080 に合わせた座標で、マークの中心はおよそ (375, 255)）
+        cx, cy, w, h = 700, 255, 380, 74
         ctx.save()
-        # カメラ
-        z, cx, cy = 1.0, W / 2, H / 2
-        if sc == "office":
-            u = tl.prog("zoom_shovel", t)
-            z, cx, cy = lerp(1, 2.3, u), lerp(W / 2, 1250, u), lerp(H / 2, 610, u)
-        elif sc == "field":
-            u = tl.prog("evil", t) * (1 - tl.prog("push", t))
-            z, cx, cy = lerp(1, 1.45, u), lerp(W / 2, 640, u), lerp(H / 2, 470, u)
-            c = tl.prog("calm", t)
-            z *= lerp(1, 1.06, c)
-        ctx.translate(W / 2, H / 2)
-        ctx.scale(z, z)
-        ctx.translate(-cx, -cy)
-        {"title": draw_title, "office": draw_office, "field": draw_field,
-         "end": draw_end}[sc](ctx, tl, t)
+        ctx.translate(0, (1 - ease_out(al)) * -10)
+        rrect(ctx, cx - w / 2, cy - h / 2, w, h, 10)
+        fill_stroke(ctx, (0.3, 0.3, 0.32, al), (0.13, 0.13, 0.16, al), 5)
+        text(ctx, "サクラダ銀行", cx, cy, 44, (1, 1, 1, al))
         ctx.restore()
-        if sc == "field":
-            dark = tl.prog("evil", t) * (1 - tl.prog("evil_off", t))
-            if dark > 0:
-                ctx.set_source_rgba(0.12, 0.0, 0.2, 0.38 * dark)
-                ctx.paint()
-        if sc in ("office", "field"):
-            caption(ctx, tl, t, NAMES, COLORS)
-        f = tl.fade(t)
-        if f > 0:
-            ctx.set_source_rgba(0, 0, 0, f)
-            ctx.paint()
+
+    def draw(ctx, t):
+        st = stage.at(t)
+        k0 = t < ev["k1"] - 0.3
+        ctx.set_source_rgb(1, 1, 1)
+        ctx.paint()
+        # --- 背景＋立ち絵（カメラの寄りをかける）
+        ctx.save()
+        px, py = st["pivot"]
+        ctx.translate(px, py)
+        ctx.scale(st["zoom"], st["zoom"])
+        ctx.translate(-px, -py)
+        draw_bg(ctx, st)
+        if t >= ev["k1"] - 0.25:  # K0 のあいだは人物を出さない（K1 の頭で出す）
+            who_now = None
+            for ln in tl.lines:
+                if ln.t0 - 0.35 <= t:
+                    who_now = ln.who[0]
+            fadein = clamp((t - (ev["k1"] - 0.25)) / 0.5)
+            order = [n for n in ("c", "b", "a", "boss") if n != who_now] + ([who_now] if who_now in tachie else [])
+            for n in order:
+                x, h, al, dim = st["chars"][n]
+                bob = 0.0
+                hop = 0.0
+                if tl.speaking(n, t):
+                    bob = 5 * math.sin((t - ev["k1"]) * 2 * math.pi * 2.6) ** 2
+                if n == "boss" and "hop" in ev:
+                    p = (t - ev["hop"]) / 0.4
+                    if 0 <= p <= 1:
+                        hop = 46 * math.sin(math.pi * p)
+                tachie[n].draw(ctx, x, GROUND_Y + 6, h, mouth=tl.mouth(n, t), alpha=al * fadein, dim=dim,
+                               bob=bob + hop, t=None)
+        # 辞令（無地の紙）：偉い人の手前に、手渡すように
+        if "paper" in ev:
+            a0, a1 = ev["paper"]
+            if a0 <= t <= ev["l5"][1] + 0.2:
+                u = ease_out((t - a0) / 1.2)
+                al = clamp((t - a0) / 0.15) * clamp((ev["l5"][1] + 0.2 - t) / 0.2)
+                bx, by = lerp(520, 620, u), lerp(800, 750, u)
+                ctx.push_group()
+                hand_arm(ctx, bx - 150, 1130, bx - 36, by + 100, hexc("#262F4A"))
+                paper(ctx, bx, by, 0.12, 1.0)
+                hand_arm(ctx, bx - 150, 1130, bx - 36, by + 100, hexc("#262F4A"))
+                ctx.pop_group_to_source()
+                ctx.paint_with_alpha(al)
+        sign(ctx, t)
+        ctx.restore()
+        # --- K0 のタイトル
+        if t < ev["k1"] + 0.6:
+            ta = ev["title_at"]
+            k = ease_back((t - ta) / 0.45)
+            out = 1 - clamp((t - (ev["k1"] - 0.3)) / 0.4)
+            if t >= ta and out > 0:
+                ctx.save()
+                ctx.translate(W / 2, H / 2 - 40)
+                ctx.scale(0.6 + 0.4 * k, 0.6 + 0.4 * k)
+                s = "スコップを渡された人たち"
+                text(ctx, s, 6, 8, 112, (0.55, 0.45, 0.3, 0.35 * out), outline=None)
+                text(ctx, s, 0, 0, 112, (0.17, 0.17, 0.2, clamp(k) * out),
+                     outline=(1, 1, 1, clamp(k) * out), ow=22)
+                text(ctx, s, 0, 0, 112, (0.17, 0.17, 0.2, clamp(k) * out))
+                ctx.restore()
+            note_fiction(ctx, small=False, alpha=out)
+        if t >= ev["k1"] - 0.3:
+            note_fiction(ctx, small=True, alpha=clamp((t - (ev["k1"] - 0.3)) / 0.4))
+        caption(ctx, tl, t, NAMES, COLORS)
+
     return draw
+
+
+def contact_sheet(files, out, cols=4, tw=480):
+    ims = [Image.open(f).convert("RGB") for f in files]
+    th = int(tw * 9 / 16)
+    rows = (len(ims) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * tw, rows * th), "white")
+    for i, im in enumerate(ims):
+        sheet.paste(im.resize((tw, th), Image.LANCZOS), ((i % cols) * tw, (i // cols) * th))
+    sheet.save(out)
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     vv = Voicevox(cache_dir=os.path.join(OUT, "cache"))
     tl = build(vv)
-    total = tl.t
-    draw = make_draw(tl)
-    print(f"total {total:.1f}s, lines {len(tl.lines)}")
+    stage, ev, total = tl.stage, tl.ev, tl.total
+    tachie = load_tachie()
+    draw = make_draw(tl, stage, ev, tachie)
+    L = {i + 5: ln for i, ln in enumerate(tl.lines)}  # 見本は #5 から順に並ぶ
     if "--stills" in sys.argv:
-        ts = [1.5] + [ln.t0 + 0.4 for ln in tl.lines] + [tl.marks["fall"][0] + 0.5, total - 2]
-        render(draw, total, None, os.path.join(OUT, "still"), frames=ts)
+        frames = [1.2, 4.7, ev["k1"] + 0.8]
+        for no in (5, 6, 7, 8, 9, 10, 11, 12, 13):
+            ln = L[no]
+            frames.append(round(min(ln.t0 + (ln.t1 - ln.t0) * 0.55, ln.t1 - 0.05), 2))
+        frames.append(round(ev["end"] - 0.05, 2))
+        import glob
+        for f in glob.glob(os.path.join(OUT, "still_k01_*.png")):
+            os.remove(f)
+        render(draw, total, None, os.path.join(OUT, "still_k01"), frames=frames)
+        files = sorted(glob.glob(os.path.join(OUT, "still_k01_*.png")))
+        sheet = core.next_version(os.path.join(OUT, "shovel_sample_sheet.png"))
+        contact_sheet(files, sheet)
+        print("静止画", len(files), "枚 →", sheet, f"/ 全体 {total:.1f}秒")
+        for no, ln in L.items():
+            print(f"#{no} {ln.t0:.2f}-{ln.t1:.2f}")
         return
-    out = os.path.join(OUT, "shovel_pilot.mp4")
-    out = render(draw, total, tl.audio(total), out)
-    print("wrote", out)
+    audio = tl.audio(total)
+    path = render(draw, total, audio, os.path.join(OUT, "shovel_sample.mp4"))
+    print("書き出し →", path, f"{total:.1f}秒")
 
 
 if __name__ == "__main__":
