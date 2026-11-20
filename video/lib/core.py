@@ -916,10 +916,25 @@ def render(draw, total, audio, out_path, frames=None):
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "out", "cache", "images")
 
 
+_CODE_TAG = None
+
+
+def _code_tag():
+    """画像を加工する関数（緑の抜き・口と目の切り出し）の中身から作る短い印。
+    関数を直すと印が変わり、直す前に作ったキャッシュを使わなくなる
+    （直す前のキャッシュが残り、口の位置がずれたままになったことがあった。2026-11-20）。"""
+    global _CODE_TAG
+    if _CODE_TAG is None:
+        import inspect
+        src = "".join(inspect.getsource(f) for f in (key_green, mouth_patch, eye_patch))
+        _CODE_TAG = hashlib.sha1(src.encode()).hexdigest()[:8]
+    return _CODE_TAG
+
+
 def _pil_to_surface(im, key):
     """PIL の RGBA 画像を cairo のサーフェスにする（PNG を経由してキャッシュ）。"""
     os.makedirs(CACHE_DIR, exist_ok=True)
-    path = os.path.join(CACHE_DIR, key + ".png")
+    path = os.path.join(CACHE_DIR, f"{key}_{_code_tag()}.png")
     if not os.path.exists(path):
         im.save(path)
     return load_image(path)
@@ -1101,7 +1116,7 @@ class Tachie:
         i = np.searchsorted(self.blinks, t, side="right") - 1
         return i >= 0 and t - self.blinks[i] < self.blink_dur
 
-    def draw(self, ctx, x, y, height, mouth=0.0, alpha=1.0, dim=0.0, bob=0.0, flip=False,
+    def draw(self, ctx, x, y, height, mouth=0.0, alpha=1.0, dim=0.0, bob=0.0, flip=False, dim_rgb=(1, 1, 1),
              face=None, t=None):
         """下端中央を (x, y) に合わせ、高さ height で描く。dim は話していない人を薄くする量。
         face は表情名（なければ既定）、t は時刻（まばたき用。None ならまばたきしない）。"""
@@ -1126,7 +1141,7 @@ class Tachie:
             ctx.set_source_surface(mp, 0, 0)
             ctx.paint()
         if dim > 0:
-            ctx.set_source_rgba(1, 1, 1, dim)
+            ctx.set_source_rgba(*dim_rgb, dim)
             ctx.mask_surface(f["base"], 0, 0)
         ctx.pop_group_to_source()
         ctx.paint_with_alpha(alpha)

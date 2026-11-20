@@ -154,7 +154,7 @@ def layout(kind, who=None):
     if kind == "scene":
         return st
     for k, v in st.items():
-        v[2], v[3] = 0.62, 0.12
+        v[2], v[3] = 1.0, 0.42  # 話していない人は透かさず、白っぽく淡くする（透かすと背景が顔に透けて幽霊のように見え、暗くすると肌の色が変わって見える）
     if kind == "talk_c":
         st["boss"][0], st["a"][0], st["b"][0] = 300, 760, 1060
         st["c"] = [1440, 920, 1.0, 0.0]
@@ -312,7 +312,7 @@ def make_draw(tl, stage, ev, tachie):
                     p = (t - ev["hop"]) / 0.4
                     if 0 <= p <= 1:
                         hop = 46 * math.sin(math.pi * p)
-                tachie[n].draw(ctx, x, GROUND_Y + 6, h, mouth=tl.mouth(n, t), alpha=al * fadein, dim=dim,
+                tachie[n].draw(ctx, x, GROUND_Y + 6, h, mouth=tl.mouth(n, t), alpha=al * fadein, dim=dim, dim_rgb=(0.96, 0.95, 0.93),
                                bob=bob + hop, t=None)
         # 辞令（無地の紙）：偉い人の手前に、手渡すように
         if "paper" in ev:
