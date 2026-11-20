@@ -29,6 +29,8 @@ from PIL import Image, ImageFilter  # noqa: E402
 
 ROOT = os.path.join(HERE, "..", "..")
 OUT = os.path.join(ROOT, "out")
+# 語り手の字幕アイコン：コミカル版の基準画像から顔を切り出したもの（リポジトリには入れない）
+core.NARRATOR_IMAGE = os.path.join(ROOT, "characters", "akihiro", "images", "akihiro_icon.png")
 IMG = os.path.join(ROOT, "assets", "images", "shovel")
 BGM_SKIT = os.path.join(ROOT, "assets", "bgm", "bgm_skit_light.mp3")
 SE_DIR = os.path.join(ROOT, "assets", "se")
@@ -800,19 +802,9 @@ def handset_prop(ev, stage, tachie_ref, who, t0, t1, side=-1, sleeve=(0.72, 0.84
             return
         ctx.push_group()
         phone_handset(ctx, ex, ey)
-        # 肩 → ひじ（外へ張る）→ 手、の2本の腕（まっすぐな棒に見えないよう、ひじを曲げる）
-        hx, hy = ex + side * 6, ey + 92
-        sx, sy = x + side * 0.30 * w, GROUND_Y + 80
-        mx, my = x + side * 0.56 * w, GROUND_Y - 200
-        for lw_, col in ((84, INK), (70, sleeve)):
-            ctx.set_line_cap(cairo.LINE_CAP_ROUND)
-            ctx.set_line_join(cairo.LINE_JOIN_ROUND)
-            ctx.set_line_width(lw_)
-            ctx.set_source_rgba(*col)
-            ctx.move_to(sx, sy)
-            ctx.line_to(mx, my)
-            ctx.line_to(hx, hy)
-            ctx.stroke()
+        # 腕は描かない（肩から長い線で描くと、棒を持っているように見えた。2026-11-20）。
+        # 受話器を握る手だけを、受話器の下のほうに重ねる。
+        hx, hy = ex + side * 4, ey + 40
         ctx.arc(hx, hy, 40, 0, 2 * math.pi)
         fill_stroke(ctx, core.SKIN, INK, 5)
         ctx.pop_group_to_source()
